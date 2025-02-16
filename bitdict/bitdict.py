@@ -98,30 +98,43 @@ def _validate_basic_properties(prop_name: str, prop_config: dict[str, Any]) -> N
             or if the type is "bool" and the width is not 1.
         TypeError: If the property configuration is not a dictionary or MappingProxyType.
     """
+    _validate_property_name(prop_name)
+    _validate_config_type_and_keys(prop_config)
+    _validate_start_and_width(prop_config)
+    _validate_type(prop_config)
+
+
+def _validate_property_name(prop_name: str) -> None:
+    """Validates that the property name is a valid identifier."""
     if not isinstance(prop_name, str) or not prop_name.isidentifier():
         raise ValueError(f"Invalid property name: {prop_name}")
+
+
+def _validate_config_type_and_keys(prop_config: dict[str, Any]) -> None:
+    """Validates the type and required keys of the property configuration."""
     required_keys = {"start", "width", "type"}
     if not isinstance(prop_config, (dict, MappingProxyType)):
         raise TypeError(
             "Property configuration must be a dictionary or MappingProxyType"
         )
     if not required_keys.issubset(prop_config):
-        raise ValueError(
-            f"Missing required keys in property config: {required_keys - set(prop_config)}"
-        )
+        missing_keys = required_keys - set(prop_config)
+        raise ValueError(f"Missing required keys in property config: {missing_keys}")
+
+
+def _validate_start_and_width(prop_config: dict[str, Any]) -> None:
+    """Validates the start and width values in the property configuration."""
     if not isinstance(prop_config["start"], int) or prop_config["start"] < 0:
         raise ValueError(f"Invalid start value: {prop_config['start']}")
     if not isinstance(prop_config["width"], int) or prop_config["width"] <= 0:
         raise ValueError(f"Invalid width value: {prop_config['width']}")
-    if prop_config["type"] not in (
-        "bool",
-        "uint",
-        "int",
-        "reserved",
-        "bitdict",
-    ):
-        raise ValueError(f"Invalid type value: {prop_config['type']}")
 
+
+def _validate_type(prop_config: dict[str, Any]) -> None:
+    """Validates the type value in the property configuration."""
+    valid_types = {"bool", "uint", "int", "reserved", "bitdict"}
+    if prop_config["type"] not in valid_types:
+        raise ValueError(f"Invalid type value: {prop_config['type']}")
     if prop_config["type"] == "bool" and prop_config["width"] != 1:
         raise ValueError("Boolean properties must have width 1")
 
@@ -158,19 +171,33 @@ def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> Non
         return
 
     if "default" not in prop_config:
-        if prop_type == "bool":
-            assert not isinstance(
-                prop_config, MappingProxyType
-            ), "Defaults not defined but config already frozen."
-            prop_config["default"] = False
-        elif prop_type in ("uint", "int"):
-            assert not isinstance(
-                prop_config, MappingProxyType
-            ), "Defaults not defined but config already frozen."
-            prop_config["default"] = 0
+        _set_missing_defaults(prop_config)
         return
 
+    _validate_default_value_type(prop_name, prop_config)
+
+
+def _set_missing_defaults(prop_config: dict[str, Any]) -> None:
+    """Sets default values if they are missing in the property configuration."""
+    prop_type = prop_config["type"]
+    if prop_type == "bool":
+        assert not isinstance(
+            prop_config, MappingProxyType
+        ), "Defaults not defined but config already frozen."
+        prop_config["default"] = False
+    elif prop_type in ("uint", "int"):
+        assert not isinstance(
+            prop_config, MappingProxyType
+        ), "Defaults not defined but config already frozen."
+        prop_config["default"] = 0
+
+
+def _validate_default_value_type(prop_name: str, prop_config: dict[str, Any]) -> None:
+    """Validates the type and range of the default value."""
     default_value = prop_config["default"]
+    prop_type = prop_config["type"]
+    width = prop_config["width"]
+
     if prop_type == "bool":
         if not isinstance(default_value, bool):
             raise TypeError(
@@ -183,7 +210,6 @@ def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> Non
                 f"Invalid default type for property {prop_name}"
                 f" expecting int: {type(default_value)}"
             )
-        width = prop_config["width"]
         if prop_type == "uint":
             if not 0 <= default_value < (1 << width):
                 raise ValueError(

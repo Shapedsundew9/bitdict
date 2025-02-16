@@ -1,7 +1,11 @@
 
 # BitDict
 
+[![codecov](https://codecov.io/gh/Shapedsundew9/bitdict/graph/badge.svg?token=W3H0k3dZ51)](https://codecov.io/gh/Shapedsundew9/bitdict) [![Known Vulnerabilities](https://snyk.io/test/github/shapedsundew9/bitdict/badge.svg)](https://snyk.io/test/github/shapedsundew9/bitdict)
+
 BitDict is a Python library for creating custom bit-packed data structures. It allows you to define and manipulate data structures where individual fields occupy specific bit ranges, similar to a struct in C. This is particularly useful for parsing and generating binary data formats, representing hardware registers, and implementing data structures with specific bit-level packing requirements.
+
+## Installation
 
 ## Concept and Use Case
 
