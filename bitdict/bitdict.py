@@ -6,6 +6,264 @@ from types import MappingProxyType
 from copy import deepcopy
 
 
+def _calculate_total_width(cfg) -> int:
+    """
+    Calculates the total bit width based on the configuration.
+
+    This is a helper function that calculates the total number of bits
+    required to store all the bit fields defined in the configuration.
+
+    Args:
+        cfg (dict): The configuration dictionary.
+
+    Returns:
+        int: The total bit width.
+    """
+    max_bit = 0
+    for prop_config in cfg.values():
+        end_bit = prop_config["start"] + prop_config["width"]
+        max_bit = max(max_bit, end_bit)
+    return max_bit
+
+
+def _validate_property_config(
+    prop_config_top: dict[str, Any], subtypes: dict[str, list[type | None]]
+) -> None:
+    """
+    Recursively validates the property configuration.
+
+    This helper function checks that the configuration dictionary
+    is valid, including the nested configurations for 'bitdict' types.
+    It ensures that all required keys are present, that property names
+    are valid identifiers, that bit fields do not overlap, and that
+    default values are within the allowed range for the data type.
+
+    Args:
+        prop_config_top (dict): The top-level configuration dictionary.
+
+    Raises:
+        ValueError: If the configuration is invalid.
+        TypeError: If the config is not a dictionary.
+    """
+    for prop_name, prop_config in prop_config_top.items():
+        _validate_basic_properties(prop_name, prop_config)
+        _validate_default_values(prop_name, prop_config)
+
+        if prop_config["type"] == "bitdict":
+            _validate_bitdict_properties(
+                prop_name, prop_config, prop_config_top, subtypes
+            )
+
+
+def _validate_basic_properties(prop_name: str, prop_config: dict[str, Any]) -> None:
+    """Validates the basic properties of a bitfield property configuration.
+
+    Args:
+        prop_name (str): The name of the property. Must be a valid identifier.
+        prop_config (dict[str, Any]): A dictionary containing the property configuration.
+            Must contain the keys "start", "width", and "type".
+
+    Raises:
+        ValueError: If the property name is not a valid identifier,
+            if the property configuration is missing required keys,
+            if the start value is not a non-negative integer,
+            if the width value is not a positive integer,
+            if the type value is not one of "bool", "uint", "int", "reserved", or "bitdict",
+            or if the type is "bool" and the width is not 1.
+        TypeError: If the property configuration is not a dictionary or MappingProxyType.
+    """
+    if not isinstance(prop_name, str) or not prop_name.isidentifier():
+        raise ValueError(f"Invalid property name: {prop_name}")
+    required_keys = {"start", "width", "type"}
+    if not isinstance(prop_config, (dict, MappingProxyType)):
+        raise TypeError(
+            "Property configuration must be a dictionary or MappingProxyType"
+        )
+    if not required_keys.issubset(prop_config):
+        raise ValueError(
+            f"Missing required keys in property config: {required_keys - set(prop_config)}"
+        )
+    if not isinstance(prop_config["start"], int) or prop_config["start"] < 0:
+        raise ValueError(f"Invalid start value: {prop_config['start']}")
+    if not isinstance(prop_config["width"], int) or prop_config["width"] <= 0:
+        raise ValueError(f"Invalid width value: {prop_config['width']}")
+    if prop_config["type"] not in (
+        "bool",
+        "uint",
+        "int",
+        "reserved",
+        "bitdict",
+    ):
+        raise ValueError(f"Invalid type value: {prop_config['type']}")
+
+    if prop_config["type"] == "bool" and prop_config["width"] != 1:
+        raise ValueError("Boolean properties must have width 1")
+
+
+def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> None:
+    """Validates and sets default values for properties in a bitfield configuration.
+
+    This function checks if the provided default value for a property matches the
+    expected type based on the property's configuration. If no default value is
+    provided and the property type is 'bool', 'uint', or 'int', it assigns a
+    default value of False, 0, or 0 respectively. It also validates that the
+    default value for 'uint' and 'int' types falls within the allowed range
+    defined by the property's width.
+
+    Args:
+        prop_name: The name of the property being validated (used for error messages).
+        prop_config: A dictionary containing the configuration for the property,
+            including its 'type', 'width' (for 'uint' and 'int'), and optionally
+            'default' value.
+
+    Raises:
+        ValueError: If the property type is 'reserved' or 'bitdict' and a default
+            value is provided, or if the default value for 'uint' or 'int' is
+            outside the allowed range.
+        TypeError: If the default value does not match the expected type
+            (bool for 'bool', int for 'uint' and 'int').
+    """
+    if prop_config["type"] in ("reserved", "bitdict"):
+        if "default" in prop_config:  # No default allowed for reserved
+            raise ValueError(
+                "'reserved' and 'bitdict' types cannot have a default values."
+            )
+        return
+
+    if "default" not in prop_config:
+        if prop_config["type"] == "bool":
+            assert not isinstance(
+                prop_config, MappingProxyType
+            ), "Defaults not defined but config already frozen."
+            prop_config["default"] = False
+        elif prop_config["type"] in ("uint", "int"):
+            assert not isinstance(
+                prop_config, MappingProxyType
+            ), "Defaults not defined but config already frozen."
+            prop_config["default"] = 0
+        return
+
+    if prop_config["type"] == "bool":
+        if not isinstance(prop_config["default"], bool):
+            raise TypeError(
+                f"Invalid default type for property {prop_name}"
+                f" expecting bool: {type(prop_config['default'])}"
+            )
+    elif prop_config["type"] == "uint":
+        if not isinstance(prop_config["default"], int):
+            raise TypeError(
+                f"Invalid default type for property {prop_name}"
+                f" expecting int: {type(prop_config['default'])}"
+            )
+        if not 0 <= prop_config["default"] < (1 << prop_config["width"]):
+            raise ValueError(
+                f"Invalid default value for property"
+                f" {prop_name}: {prop_config['default']}"
+            )
+    elif prop_config["type"] == "int":
+        if not isinstance(prop_config["default"], int):
+            raise TypeError(
+                f"Invalid default type for property {prop_name}"
+                f" expecting int: {type(prop_config['default'])}"
+            )
+        if (
+            not -(1 << (prop_config["width"] - 1))
+            <= prop_config["default"]
+            < (1 << (prop_config["width"] - 1))
+        ):
+            raise ValueError(
+                f"Invalid default value for property {prop_name}"
+                f": {prop_config['default']}"
+            )
+
+
+def _validate_bitdict_properties(
+    prop_name: str,
+    prop_config: dict[str, Any],
+    prop_config_top: dict[str, Any],
+    subtypes: dict[str, list[type | None]],
+) -> None:
+    """Validates the properties of a 'bitdict' type configuration.
+
+    This function checks if the provided configuration for a 'bitdict' type property
+    is valid. It verifies the existence and type of required fields like 'subtype'
+    (a list) and 'selector' (a string). It also validates the selector property
+    itself, ensuring it exists in the top-level configuration, is of type 'bool' or
+    'uint', and has a width no greater than 16.  It also establishes a reverse
+    linkage from the selector property to the bitdict property name. Finally, it
+    recursively validates the configurations of the subtypes.
+
+    Args:
+        prop_name: The name of the property being validated.
+        prop_config: The configuration dictionary for the 'bitdict' property.
+        prop_config_top: The top-level configuration dictionary containing all properties.
+        subtypes: A dictionary to store the validated subtypes.  The keys are the
+            property names and the values are lists of types (or None).
+
+    Raises:
+        ValueError: If any of the following conditions are met:
+            - 'subtype' is missing or not a list.
+            - 'selector' is missing or not a string.
+            - The selector property does not exist in the top-level configuration.
+            - The selector property is not of type 'bool' or 'uint'.
+            - The selector property's width is greater than 16.
+            - The 'subtype' list is empty.
+    """
+    if "subtype" not in prop_config or not isinstance(prop_config["subtype"], list):
+        raise ValueError("'bitdict' type requires a 'subtype' list")
+    if "selector" not in prop_config or not isinstance(prop_config["selector"], str):
+        raise ValueError("'bitdict' type requires a 'selector' field")
+    selector = prop_config["selector"]
+    if selector not in prop_config_top:
+        raise ValueError(f"Invalid selector property: {selector}")
+    if prop_config_top[selector]["type"] not in (
+        "bool",
+        "uint",
+    ):
+        raise ValueError("Selector property must be of type 'bool' or 'uint'")
+    if prop_config_top[selector]["width"] > 16:
+        raise ValueError("Selector property width must be <= 16 (65536 subtypes)")
+
+    # Reverse linkage
+    prop_config_top[selector]["_bitdict"] = prop_name
+
+    if len(prop_config["subtype"]) == 0:
+        raise ValueError(
+            f"'bitdict' type for property '{prop_name}' must have at least one subtype"
+        )
+
+    for sub_config in prop_config["subtype"]:
+        # Recursively validate sub-configurations
+        subtypes.setdefault(prop_name, []).append(
+            None if sub_config is None else bitdict_factory(sub_config)
+        )  # We can use the factory recursively
+
+
+def _check_overlapping(cfg) -> None:
+    """
+    Checks for overlapping bit field definitions.
+
+    This helper function ensures that no two bit fields in the
+    configuration overlap.
+
+    Args:
+        cfg (dict): The configuration dictionary.
+
+    Raises:
+        ValueError: If any bit fields overlap.
+    """
+    used_bits = set()
+    for _, prop_config in cfg.items():
+        for i in range(
+            prop_config["start"], prop_config["start"] + prop_config["width"]
+        ):
+            if i in used_bits:
+                raise ValueError(
+                    f"Overlapping bit definitions: bit {i} is used by multiple properties"
+                )
+            used_bits.add(i)
+
+
 def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
     """
     Factory function to create BitDict classes based on a configuration.
@@ -27,10 +285,13 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
             * `default` (optional): The default value for the bit field.
               If not provided, defaults to False for 'bool', 0 for 'uint' and 'int'.
             * `subtype` (list of dict, optional):  Required for 'bitdict' type.
+              Ignored for other types.
               A list of sub-bitdict configurations to select from based
               on the value of the selector property.
             * `selector` (str, optional): Required for 'bitdict' type.
+              Ignored for other types
               The name of the property used to select the active sub-bitdict.
+              This property must be of type 'bool' or 'uint' and have a width <= 16.
 
         name (str, optional): The name of the generated class.
             Defaults to "BitDict".
@@ -71,190 +332,9 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
         raise TypeError("config must be a dictionary")
 
     # Subtype classes are stored in a dictionary for recursive creation.
-    subtypes: dict[str, list[type[BitDict] | None]] = {}
+    subtypes: dict[str, list[type | None]] = {}
 
-    def _calculate_total_width(cfg) -> int:
-        """
-        Calculates the total bit width based on the configuration.
-
-        This is a helper function that calculates the total number of bits
-        required to store all the bit fields defined in the configuration.
-
-        Args:
-            cfg (dict): The configuration dictionary.
-
-        Returns:
-            int: The total bit width.
-        """
-        max_bit = 0
-        for prop_config in cfg.values():
-            end_bit = prop_config["start"] + prop_config["width"]
-            max_bit = max(max_bit, end_bit)
-        return max_bit
-
-    def _validate_property_config(prop_config_top: dict[str, Any]) -> None:
-        """
-        Recursively validates the property configuration.
-
-        This helper function checks that the configuration dictionary
-        is valid, including the nested configurations for 'bitdict' types.
-        It ensures that all required keys are present, that property names
-        are valid identifiers, that bit fields do not overlap, and that
-        default values are within the allowed range for the data type.
-
-        Args:
-            prop_config_top (dict): The top-level configuration dictionary.
-
-        Raises:
-            ValueError: If the configuration is invalid.
-            TypeError: If the config is not a dictionary.
-        """
-        for prop_name, prop_config in prop_config_top.items():
-            if not isinstance(prop_name, str) or not prop_name.isidentifier():
-                raise ValueError(f"Invalid property name: {prop_name}")
-            required_keys = {"start", "width", "type"}
-            if not isinstance(prop_config, (dict, MappingProxyType)):
-                raise TypeError(
-                    "Property configuration must be a dictionary or MappingProxyType"
-                )
-            if not required_keys.issubset(prop_config):
-                raise ValueError(
-                    f"Missing required keys in property config: {required_keys - set(prop_config)}"
-                )
-            if not isinstance(prop_config["start"], int) or prop_config["start"] < 0:
-                raise ValueError(f"Invalid start value: {prop_config['start']}")
-            if not isinstance(prop_config["width"], int) or prop_config["width"] <= 0:
-                raise ValueError(f"Invalid width value: {prop_config['width']}")
-            if prop_config["type"] not in (
-                "bool",
-                "uint",
-                "int",
-                "reserved",
-                "bitdict",
-            ):
-                raise ValueError(f"Invalid type value: {prop_config['type']}")
-
-            if prop_config["type"] == "bool" and prop_config["width"] != 1:
-                raise ValueError("Boolean properties must have width 1")
-
-            if prop_config["type"] in ("reserved", "bitdict"):
-                if "default" in prop_config:  # No default allowed for reserved
-                    raise ValueError(
-                        "'reserved' and 'bitdict' types cannot have a default values."
-                    )
-            else:
-                if "default" in prop_config:
-                    if prop_config["type"] == "bool":
-                        if not isinstance(prop_config["default"], bool):
-                            raise TypeError(
-                                f"Invalid default type for property {prop_name}"
-                                f" expecting bool: {type(prop_config['default'])}"
-                            )
-                    elif prop_config["type"] == "uint":
-                        if not isinstance(prop_config["default"], int):
-                            raise TypeError(
-                                f"Invalid default type for property {prop_name}"
-                                f" expecting int: {type(prop_config['default'])}"
-                            )
-                        if (
-                            not 0
-                            <= prop_config["default"]
-                            < (1 << prop_config["width"])
-                        ):
-                            raise ValueError(
-                                f"Invalid default value for property"
-                                f" {prop_name}: {prop_config['default']}"
-                            )
-                    elif prop_config["type"] == "int":
-                        if not isinstance(prop_config["default"], int):
-                            raise TypeError(
-                                f"Invalid default type for property {prop_name}"
-                                f" expecting int: {type(prop_config['default'])}"
-                            )
-                        if (
-                            not -(1 << (prop_config["width"] - 1))
-                            <= prop_config["default"]
-                            < (1 << (prop_config["width"] - 1))
-                        ):
-                            raise ValueError(
-                                f"Invalid default value for property {prop_name}"
-                                f": {prop_config['default']}"
-                            )
-                else:
-                    if prop_config["type"] == "bool":
-                        assert not isinstance(
-                            prop_config, MappingProxyType
-                        ), "Defaults not defined but config already frozen."
-                        prop_config["default"] = False
-                    elif prop_config["type"] in ("uint", "int"):
-                        assert not isinstance(
-                            prop_config, MappingProxyType
-                        ), "Defaults not defined but config already frozen."
-                        prop_config["default"] = 0
-
-            if prop_config["type"] == "bitdict":
-                if "subtype" not in prop_config or not isinstance(
-                    prop_config["subtype"], list
-                ):
-                    raise ValueError("'bitdict' type requires a 'subtype' list")
-                if "selector" not in prop_config or not isinstance(
-                    prop_config["selector"], str
-                ):
-                    raise ValueError("'bitdict' type requires a 'selector' field")
-                selector = prop_config["selector"]
-                if selector not in prop_config_top:
-                    raise ValueError(f"Invalid selector property: {selector}")
-                if prop_config_top[selector]["type"] not in (
-                    "bool",
-                    "uint",
-                ):
-                    raise ValueError(
-                        "Selector property must be of type 'bool' or 'uint'"
-                    )
-                if prop_config_top[selector]["width"] > 16:
-                    raise ValueError(
-                        "Selector property width must be <= 16 (65536 subtypes)"
-                    )
-
-                # Reverse linkage
-                prop_config_top[selector]["_bitdict"] = prop_name
-
-                if len(prop_config["subtype"]) == 0:
-                    raise ValueError(
-                        f"'bitdict' type for property '{prop_name}' must have at least one subtype"
-                    )
-
-                for sub_config in prop_config["subtype"]:
-                    # Recursively validate sub-configurations
-                    subtypes.setdefault(prop_name, []).append(
-                        None if sub_config is None else bitdict_factory(sub_config)
-                    )  # We can use the factory recursively
-
-    def _check_overlapping(cfg) -> None:
-        """
-        Checks for overlapping bit field definitions.
-
-        This helper function ensures that no two bit fields in the
-        configuration overlap.
-
-        Args:
-            cfg (dict): The configuration dictionary.
-
-        Raises:
-            ValueError: If any bit fields overlap.
-        """
-        used_bits = set()
-        for _, prop_config in cfg.items():
-            for i in range(
-                prop_config["start"], prop_config["start"] + prop_config["width"]
-            ):
-                if i in used_bits:
-                    raise ValueError(
-                        f"Overlapping bit definitions: bit {i} is used by multiple properties"
-                    )
-                used_bits.add(i)
-
-    _validate_property_config(config)  # Initial validation of top level.
+    _validate_property_config(config, subtypes)  # Initial validation of top level.
     _check_overlapping(config)
     total_width = _calculate_total_width(config)
 
@@ -290,7 +370,7 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
             "mode": {"type": "uint", "start": 1, "width": 2, "default": 0},
             "value": {"type": "int", "start": 3, "width": 5, "default": 0},
         }
-        MyBitDict = BitDict.create("MyBitDict", config)
+        MyBitDict = bitdict_factory("MyBitDict", config)
         my_dict = MyBitDict()
         my_dict["enabled"] = True
         my_dict["mode"] = 2
@@ -300,7 +380,7 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
         """
 
         _config: MappingProxyType[str, Any] = MappingProxyType(deepcopy(config))
-        _subtypes: dict[str, list[type[BitDict] | None]] = subtypes
+        _subtypes: dict[str, list[type | None]] = subtypes
         _total_width: int = total_width
         __name__: str = name
 
@@ -399,15 +479,6 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
                 raise KeyError(f"Invalid property: {key}")
 
             prop_config = self._config[key]
-            if prop_config["type"] == "reserved":
-                raise ValueError(f"Cannot read a reserved property '{key}'")
-
-            if prop_config["type"] == "bitdict":
-                selector_value: bool | int | BitDict = self[prop_config["selector"]]
-                assert isinstance(selector_value, int), "Selector must be an integer"
-                bd: BitDict = self._get_subbitdict(key, selector_value)
-                return bd
-
             start = prop_config["start"]
             width = prop_config["width"]
             mask = (1 << width) - 1
@@ -415,6 +486,9 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
 
             if prop_config["type"] == "bool":
                 return bool(raw_value)
+
+            if prop_config["type"] == "uint":
+                return raw_value
 
             if prop_config["type"] == "int":
                 # Two's complement conversion if the highest bit is set
@@ -424,8 +498,14 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
                     else raw_value
                 )
 
-            if prop_config["type"] == "uint":
-                return raw_value
+            if prop_config["type"] == "bitdict":
+                selector_value: bool | int | BitDict = self[prop_config["selector"]]
+                assert isinstance(selector_value, int), "Selector must be an integer"
+                bd: BitDict = self._get_subbitdict(key, selector_value)
+                return bd
+
+            if prop_config["type"] == "reserved":
+                raise ValueError(f"Cannot read a reserved property '{key}'")
 
             assert False, f"Unknown property type: {prop_config['type']}"
 
@@ -445,9 +525,6 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
             if key not in self._config:
                 raise KeyError(f"Invalid property: {key}")
 
-            if self._config[key]["type"] == "reserved":
-                raise ValueError(f"Cannot set reserved property '{key}'")
-
             prop_config = self._config[key]
             start = prop_config["start"]
             width = prop_config["width"]
@@ -459,6 +536,11 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
                         f"Expected boolean or integer value for property '{key}'"
                     )
                 value = 1 if value else 0
+            elif prop_config["type"] == "uint":
+                if not isinstance(value, int):
+                    raise TypeError(f"Expected integer value for property '{key}'")
+                if not 0 <= value < (1 << width):
+                    raise ValueError(f"Value {value} out of range for property '{key}'")
             elif prop_config["type"] == "int":
                 if not isinstance(value, int):
                     raise TypeError(f"Expected integer value for property '{key}'")
@@ -467,14 +549,6 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
                 # Convert to two's complement representation
                 if value < 0:
                     value = (1 << width) + value
-            elif prop_config["type"] == "uint":
-                if not isinstance(value, int):
-                    raise TypeError(f"Expected integer value for property '{key}'")
-                if not 0 <= value < (1 << width):
-                    raise ValueError(f"Value {value} out of range for property '{key}'")
-            elif prop_config["type"] == "reserved":
-                # You can't *set* reserved bits.
-                raise ValueError(f"Cannot set reserved property '{key}'")
             elif prop_config["type"] == "bitdict":
                 # Set the sub-bitdict value.
                 selector_value = self[prop_config["selector"]]
@@ -482,6 +556,11 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
                 bd: BitDict = self._get_subbitdict(key, selector_value)
                 bd.set(value)
                 value = bd.to_int()
+            elif prop_config["type"] == "reserved":
+                # You can't *set* reserved bits.
+                raise ValueError(f"Cannot set reserved property '{key}'")
+            else:
+                assert False, f"Unknown property type: {prop_config['type']}"
 
             # If the property is a selector then the sub-bitdict
             # changes and we need to update the value
@@ -671,7 +750,7 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
             1.  As an integer: In this case, the integer value is assigned to the
                 underlying integer representation of the BitDict.  A ValueError is
                 raised if the integer is outside the allowed range, given the
-                configured bit width.
+                configured bit width. Note the integer must be >= 0.
             2.  As a dictionary: In this case, the dictionary is treated as a set
                 of property values to be assigned to the BitDict.  The keys of the
                 dictionary correspond to the property names defined in the BitDict's
@@ -701,11 +780,8 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
                         f"Integer value {value} exceeds maximum"
                         f" value for bit width {self._total_width}"
                     )
-                if value < -(1 << (self._total_width - 1)):
-                    raise ValueError(
-                        f"Integer value {value} exceeds minimum"
-                        f"value for bit width {self._total_width}"
-                    )
+                if value < 0:
+                    raise ValueError(f"Integer must be non-negative, got {value}")
                 self._value: int = value
 
                 # Must set sub-bitdicts after setting the main value.

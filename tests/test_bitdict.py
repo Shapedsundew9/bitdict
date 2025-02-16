@@ -881,7 +881,7 @@ class TestBitDict(unittest.TestCase):
         """
 
         config = {"field1": MappingProxyType({"start": 0, "width": 4, "type": "uint"})}
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AssertionError):
             bitdict_factory(config)
 
     def test_factory_invalid_config_mappingproxy_property(self):
@@ -898,13 +898,18 @@ class TestBitDict(unittest.TestCase):
             }
         }
         config["field1"] = MappingProxyType(config["field1"])  # type: ignore
-        with self.assertRaises(TypeError):
+        with self.assertRaises(AssertionError):
             bitdict_factory(config)
 
     def test_factory_missing_default_value(self):
         """
-        Test that bitdict_factory assigns default values when they are missing in the config.
+        Test that the bitdict_factory function correctly assigns default values
+        to fields when the 'default' key is missing in the configuration.
+
+        It checks if the default value for uint fields is set to 0,
+        for boolean fields is set to False, and for int fields is set to 0.
         """
+
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
             "field2": {"start": 4, "width": 1, "type": "bool"},
@@ -916,9 +921,12 @@ class TestBitDict(unittest.TestCase):
         self.assertEqual(MyBitDict.get_config()["field3"]["default"], 0)
 
     def test_factory_missing_default_value_nested(self):
+        """Test that the bitdict_factory correctly assigns default values to nested fields
+        when no default value is explicitly provided in the configuration. Specifically,
+        this test checks that uint fields are assigned a default value of 0 and bool
+        fields are assigned a default value of False within a nested bitdict structure.
         """
-        Test that bitdict_factory assigns default values when they are missing in a nested config.
-        """
+
         config = {
             "field1": {
                 "start": 0,
@@ -946,8 +954,10 @@ class TestBitDict(unittest.TestCase):
 
     def test_factory_valid_config_no_default(self):
         """
-        Test that bitdict_factory works with a valid configuration with no default values.
+        Test that the bitdict_factory creates a class that initializes fields to zero/False
+        when a valid configuration is provided and no default values are specified.
         """
+
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
             "field2": {"start": 4, "width": 1, "type": "bool"},
@@ -959,6 +969,108 @@ class TestBitDict(unittest.TestCase):
         self.assertEqual(bd["field2"], False)
         self.assertEqual(bd["field3"], 0)
 
+    def test_factory_valid_config_invalid_default_uint_type(self):
+        """
+        Test that bitdict_factory raises a TypeError when a valid configuration
+        is provided, but the default value for a uint field is of an invalid type
+        (i.e., not an integer or convertible to an integer).
+        """
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "default": "invalid"},
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+            "field3": {"start": 5, "width": 4, "type": "int"},
+        }
+        with self.assertRaises(TypeError):
+            _ = bitdict_factory(config)
+
+    def test_factory_valid_config_invalid_default_bool_type(self):
+        """
+        Test that bitdict_factory raises a TypeError when a valid configuration
+        is provided, but the default value for a boolean field is of an invalid type
+        (i.e., not a boolean).
+        """
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint"},
+            "field2": {"start": 4, "width": 1, "type": "bool", "default": "invalid"},
+            "field3": {"start": 5, "width": 4, "type": "int"},
+        }
+        with self.assertRaises(TypeError):
+            _ = bitdict_factory(config)
+
+    def test_factory_valid_config_invalid_default_int_type(self):
+        """
+        Test that bitdict_factory raises a TypeError when a valid configuration
+        is provided, but the default value for an integer field is of an invalid type (string).
+        """
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint"},
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+            "field3": {"start": 5, "width": 4, "type": "int", "default": "invalid"},
+        }
+        with self.assertRaises(TypeError):
+            _ = bitdict_factory(config)
+
+    def test_factory_valid_config_invalid_type(self):
+        """
+        Test that bitdict_factory raises a TypeError when a valid configuration
+        dictionary is provided, but one of the fields has an invalid default value
+        that cannot be cast to the specified type.
+        """
+
+        config = {
+            "field1": [0, 1],
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+            "field3": {"start": 5, "width": 4, "type": "int", "default": "invalid"},
+        }
+        with self.assertRaises(TypeError):
+            _ = bitdict_factory(config)
+
+    def test_factory_valid_config_invalid_selector(self):
+        """
+        Test that a ValueError is raised when the selector field in a bitdict subtype
+        configuration is invalid. This test uses a valid configuration for the
+        top-level bitdict but provides an invalid selector name ('Invalid') for
+        a nested bitdict, which should trigger the ValueError during bitdict factory
+        creation.
+        """
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint"},
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+            "field3": {
+                "start": 5,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "Invalid",
+                "subtype": [{"field1": {"start": 0, "width": 4, "type": "uint"}}],
+            },
+        }
+        with self.assertRaises(ValueError):
+            _ = bitdict_factory(config)
+
+    def test_factory_valid_config_no_subtypes(self):
+        """
+        Test that the bitdict_factory raises a ValueError when a valid configuration
+        with a bitdict type field is provided, but the subtype list is empty.
+        """
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint"},
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+            "field3": {
+                "start": 5,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field1",
+                "subtype": [],
+            },
+        }
+        with self.assertRaises(ValueError):
+            _ = bitdict_factory(config)
+
     def test_getitem_invalid_key(self):
         """Test that __getitem__ raises a KeyError for an invalid key."""
         bd = self.my_bitdict()
@@ -968,29 +1080,12 @@ class TestBitDict(unittest.TestCase):
     def test_getitem_unknown_property_type(self):
         """Test that __getitem__ raises an AssertionError for an unknown property type."""
         config = {
-            "field1": {"start": 0, "width": 4, "type": "unknown"},
+            "field1": {"start": 0, "width": 4, "type": "uint"},
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
+        bd._config["field1"]["type"] = "unknown"  # pylint: disable=protected-access
         with self.assertRaises(AssertionError):
-            _ = bd["field1"]
-
-    def test_getitem_nested_bitdict_no_selector(self):
-        """Test that __getitem__ raises a KeyError when accessing a
-        nested bitdict without a selector."""
-        config = {
-            "field1": {
-                "start": 0,
-                "width": 4,
-                "type": "bitdict",
-                "subtype": [
-                    {"nested_field1": {"start": 0, "width": 2, "type": "uint"}},
-                ],
-            },
-        }
-        MyBitDict = bitdict_factory(config)
-        bd = MyBitDict()
-        with self.assertRaises(KeyError):
             _ = bd["field1"]
 
     def test_clear(self):
@@ -1004,29 +1099,363 @@ class TestBitDict(unittest.TestCase):
         bd.clear()
         self.assertEqual(bd.to_int(), 0)  # All bits should be cleared
 
-    def test_setitem_nested_bitdict_no_selector(self):
-        """Test that __setitem__ raises a KeyError when setting a nested
-        bitdict without a selector."""
+    def test_int_width_1(self):
+        """Test that an 'int' type property with a width of 1 works correctly."""
         config = {
-            "field1": {
-                "start": 0,
-                "width": 4,
+            "field1": {"start": 0, "width": 1, "type": "int"},
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        bd["field1"] = 0
+        self.assertEqual(bd["field1"], 0)
+        bd["field1"] = -1
+        self.assertEqual(bd["field1"], -1)
+        with self.assertRaises(ValueError):
+            bd["field1"] = 1
+        with self.assertRaises(ValueError):
+            bd["field1"] = -2
+
+    def test_uint_width_1(self):
+        """Test that a uint field with width 1 can be set and retrieved correctly.
+
+        This test defines a bitdict with a single uint field of width 1.
+        It then checks that the field can be set to 0 and 1, and that
+        attempting to set it to a value outside this range raises a ValueError.
+        """
+
+        config = {
+            "field1": {"start": 0, "width": 1, "type": "uint"},
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        bd["field1"] = 0
+        self.assertEqual(bd["field1"], 0)
+        bd["field1"] = 1
+        self.assertEqual(bd["field1"], 1)
+        with self.assertRaises(ValueError):
+            bd["field1"] = -1
+        with self.assertRaises(ValueError):
+            bd["field1"] = 2
+
+    def test_two_bitdicts_same_selector(self):
+        """Test that two bitdicts can use the same selector field without interfering
+        with each other.
+
+        This test defines a bitdict configuration with two sub-bitdicts, BitDict1 and BitDict2,
+        both controlled by the same selector field, Selector.  It verifies that setting values
+        in one sub-bitdict does not affect the other, based on the selector value.
+        """
+
+        config = {
+            "Selector": {"start": 0, "width": 1, "type": "bool"},
+            "BitDict1": {
+                "start": 1,
+                "width": 2,
                 "type": "bitdict",
+                "selector": "Selector",
+                "subtype": [
+                    {"fieldA": {"start": 0, "width": 2, "type": "uint"}},
+                    {"fieldB": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "BitDict2": {
+                "start": 3,
+                "width": 2,
+                "type": "bitdict",
+                "selector": "Selector",
+                "subtype": [
+                    {"fieldC": {"start": 0, "width": 2, "type": "uint"}},
+                    {"fieldD": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+
+        # Set selector to False, check BitDict1.fieldA and BitDict2.fieldC
+        bd["Selector"] = False
+        bd["BitDict1"]["fieldA"] = 1
+        bd["BitDict2"]["fieldC"] = 2
+        self.assertEqual(bd["BitDict1"]["fieldA"], 1)
+        self.assertEqual(bd["BitDict2"]["fieldC"], 2)
+
+        # Set selector to True, check BitDict1.fieldB and BitDict2.fieldD
+        bd["Selector"] = True
+        bd["BitDict1"]["fieldB"] = 3
+        bd["BitDict2"]["fieldD"] = 0
+        self.assertEqual(bd["BitDict1"]["fieldB"], 3)
+        self.assertEqual(bd["BitDict2"]["fieldD"], 0)
+
+    def test_three_bitdicts_different_selectors(self):
+        """Test case to verify the functionality of three BitDicts with different selectors.
+
+        This test defines a configuration with three BitDicts (BitDict1, BitDict2, BitDict3)
+        each controlled by different selectors (Selector1, Selector2). It checks if the
+        values within these BitDicts can be set and retrieved correctly based on the
+        state of their respective selectors. The test covers scenarios where selectors
+        are both False and True, ensuring that the correct subtype fields are accessed
+        and modified.
+        """
+
+        config = {
+            "Selector1": {"start": 0, "width": 1, "type": "bool"},
+            "Selector2": {"start": 1, "width": 1, "type": "bool"},
+            "BitDict1": {
+                "start": 2,
+                "width": 2,
+                "type": "bitdict",
+                "selector": "Selector1",
+                "subtype": [
+                    {"fieldA": {"start": 0, "width": 2, "type": "uint"}},
+                    {"fieldB": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "BitDict2": {
+                "start": 4,
+                "width": 2,
+                "type": "bitdict",
+                "selector": "Selector2",
+                "subtype": [
+                    {"fieldC": {"start": 0, "width": 2, "type": "uint"}},
+                    {"fieldD": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "BitDict3": {
+                "start": 6,
+                "width": 2,
+                "type": "bitdict",
+                "selector": "Selector1",
+                "subtype": [
+                    {"fieldE": {"start": 0, "width": 2, "type": "uint"}},
+                    {"fieldF": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+
+        # Set selectors and check values
+        bd["Selector1"] = False
+        bd["Selector2"] = True
+        bd["BitDict1"]["fieldA"] = 1
+        bd["BitDict2"]["fieldD"] = 2
+        bd["BitDict3"]["fieldE"] = 3
+        self.assertEqual(bd["BitDict1"]["fieldA"], 1)
+        self.assertEqual(bd["BitDict2"]["fieldD"], 2)
+        self.assertEqual(bd["BitDict3"]["fieldE"], 3)
+
+        bd["Selector1"] = True
+        bd["Selector2"] = False
+        bd["BitDict1"]["fieldB"] = 3
+        bd["BitDict2"]["fieldC"] = 1
+        bd["BitDict3"]["fieldF"] = 0
+        self.assertEqual(bd["BitDict1"]["fieldB"], 3)
+        self.assertEqual(bd["BitDict2"]["fieldC"], 1)
+        self.assertEqual(bd["BitDict3"]["fieldF"], 0)
+
+    def test_four_deep_nested_bitdicts(self):
+        """
+        Test case for four-level deep nested bitdicts.
+
+        This test defines a complex configuration with nested bitdicts up to four levels deep.
+        It then creates a bitdict instance using the `bitdict_factory` and verifies that
+        values can be set and retrieved correctly at different levels of nesting.
+
+        The test covers the following:
+        - Defining a configuration with nested bitdicts and selectors.
+        - Creating a bitdict instance from the configuration.
+        - Setting values of selectors at different levels to navigate the nested structure.
+        - Setting values of fields within the deepest nested bitdicts.
+        - Asserting that the values are correctly set and retrieved.
+        """
+
+        config = {
+            "Selector1": {"start": 0, "width": 1, "type": "bool"},
+            "BitDict1": {
+                "start": 1,
+                "width": 3,
+                "type": "bitdict",
+                "selector": "Selector1",
                 "subtype": [
                     {
-                        "nested_field1": {
-                            "start": 0,
+                        "Selector2": {"start": 0, "width": 1, "type": "bool"},
+                        "BitDict2": {
+                            "start": 1,
                             "width": 2,
-                            "type": "uint",
-                        }
+                            "type": "bitdict",
+                            "selector": "Selector2",
+                            "subtype": [
+                                {
+                                    "Selector3": {
+                                        "start": 0,
+                                        "width": 1,
+                                        "type": "bool",
+                                    },
+                                    "BitDict3": {
+                                        "start": 1,
+                                        "width": 1,
+                                        "type": "bitdict",
+                                        "selector": "Selector3",
+                                        "subtype": [
+                                            {
+                                                "fieldA": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                            {
+                                                "fieldB": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                        ],
+                                    },
+                                },
+                                {
+                                    "Selector3": {
+                                        "start": 0,
+                                        "width": 1,
+                                        "type": "bool",
+                                    },
+                                    "BitDict3": {
+                                        "start": 1,
+                                        "width": 1,
+                                        "type": "bitdict",
+                                        "selector": "Selector3",
+                                        "subtype": [
+                                            {
+                                                "fieldC": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                            {
+                                                "fieldD": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                    {
+                        "Selector2": {"start": 0, "width": 1, "type": "bool"},
+                        "BitDict2": {
+                            "start": 1,
+                            "width": 2,
+                            "type": "bitdict",
+                            "selector": "Selector2",
+                            "subtype": [
+                                {
+                                    "Selector3": {
+                                        "start": 0,
+                                        "width": 1,
+                                        "type": "bool",
+                                    },
+                                    "BitDict3": {
+                                        "start": 1,
+                                        "width": 1,
+                                        "type": "bitdict",
+                                        "selector": "Selector3",
+                                        "subtype": [
+                                            {
+                                                "fieldE": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                            {
+                                                "fieldF": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                        ],
+                                    },
+                                },
+                                {
+                                    "Selector3": {
+                                        "start": 0,
+                                        "width": 1,
+                                        "type": "bool",
+                                    },
+                                    "BitDict3": {
+                                        "start": 1,
+                                        "width": 1,
+                                        "type": "bitdict",
+                                        "selector": "Selector3",
+                                        "subtype": [
+                                            {
+                                                "fieldG": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                            {
+                                                "fieldH": {
+                                                    "start": 0,
+                                                    "width": 1,
+                                                    "type": "uint",
+                                                }
+                                            },
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
                     },
                 ],
             },
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
-        with self.assertRaises(KeyError):
-            bd["field1"] = {"nested_field1": 1}
+
+        # Set selectors and check values
+        bd["Selector1"] = False
+        bd["BitDict1"]["Selector2"] = True
+        bd["BitDict1"]["BitDict2"]["Selector3"] = False
+        bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldC"] = 1
+        self.assertEqual(bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldC"], 1)
+
+        bd["Selector1"] = True
+        bd["BitDict1"]["Selector2"] = False
+        bd["BitDict1"]["BitDict2"]["Selector3"] = True
+        bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldF"] = 1
+        self.assertEqual(bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldF"], 1)
+
+    def test_setitem_reserved_field(self):
+        """Test that setting a reserved field raises an AssertionError."""
+
+        bd = self.my_bitdict()
+        bd._config["Reserved"]["type"] = "unknown"  # pylint: disable=protected-access
+        with self.assertRaises(AssertionError):
+            bd["Reserved"] = 1
+
+    def test_setitem_int_overflow(self):
+        """Test that setting an item with an integer that overflows the
+        bitdict raises a ValueError."""
+
+        bd = self.my_bitdict()
+        with self.assertRaises(ValueError):
+            bd.set(1 << len(bd))
+
+    def test_setitem_int_underflow(self):
+        """Test that setting a negative integer raises a ValueError."""
+
+        bd = self.my_bitdict()
+        with self.assertRaises(ValueError):
+            bd.set(-1)
 
 
 if __name__ == "__main__":
