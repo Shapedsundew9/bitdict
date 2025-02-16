@@ -1,19 +1,31 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "bitdict"
-version = "0.0.1"
-authors = [
-  { name="Your Name", email="your_email@example.com" },
-]
-description = "A small example package that demonstrates a dictionary implementation."
+version = "1.0.0-beta"
+requires-python = ">= 3.10"
+description = "BitDict is a Python library for creating custom bit-packed data structures with dynamically defined substructures."
+authors = [{ name = "Shaped Sundew", email = "shapedsundew9@gmail.com" }]
 readme = "README.md"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Python :: 3",
-    "Operating System :: OS Independent",
-]
-license = "MIT"
 license-files = ["LICEN[CS]E*"]
+keywords = ["bitstruct", "bitfield", "bitpacked"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Topic :: Software Development",
+  "License :: OSI Approved :: MIT License",
+  "Natural Language :: English",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13"
+]
 
 [project.urls]
-Homepage = "https://github.com/pypa/sampleproject"
-Issues = "https://github.com/pypa/sampleproject/issues"
+Homepage = "https://github.com/Shapedsundew9/bitdict"
+Documentation = "https://github.com/Shapedsundew9/bitdict/blob/main/README.md"
+Repository = "https://github.com/Shapedsundew9/bitdict"
+Issues = "https://github.com/Shapedsundew9/bitdict/issues"
+Changelog = "https://github.com/Shapedsundew9/bitdict/blob/main/CHANGELOG.md"
