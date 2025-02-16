@@ -149,7 +149,8 @@ def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> Non
         TypeError: If the default value does not match the expected type
             (bool for 'bool', int for 'uint' and 'int').
     """
-    if prop_config["type"] in ("reserved", "bitdict"):
+    prop_type = prop_config["type"]
+    if prop_type in ("reserved", "bitdict"):
         if "default" in prop_config:  # No default allowed for reserved
             raise ValueError(
                 "'reserved' and 'bitdict' types cannot have a default values."
@@ -157,50 +158,44 @@ def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> Non
         return
 
     if "default" not in prop_config:
-        if prop_config["type"] == "bool":
+        if prop_type == "bool":
             assert not isinstance(
                 prop_config, MappingProxyType
             ), "Defaults not defined but config already frozen."
             prop_config["default"] = False
-        elif prop_config["type"] in ("uint", "int"):
+        elif prop_type in ("uint", "int"):
             assert not isinstance(
                 prop_config, MappingProxyType
             ), "Defaults not defined but config already frozen."
             prop_config["default"] = 0
         return
 
-    if prop_config["type"] == "bool":
-        if not isinstance(prop_config["default"], bool):
+    default_value = prop_config["default"]
+    if prop_type == "bool":
+        if not isinstance(default_value, bool):
             raise TypeError(
                 f"Invalid default type for property {prop_name}"
-                f" expecting bool: {type(prop_config['default'])}"
+                f" expecting bool: {type(default_value)}"
             )
-    elif prop_config["type"] == "uint":
-        if not isinstance(prop_config["default"], int):
+    elif prop_type in ("uint", "int"):
+        if not isinstance(default_value, int):
             raise TypeError(
                 f"Invalid default type for property {prop_name}"
-                f" expecting int: {type(prop_config['default'])}"
+                f" expecting int: {type(default_value)}"
             )
-        if not 0 <= prop_config["default"] < (1 << prop_config["width"]):
-            raise ValueError(
-                f"Invalid default value for property"
-                f" {prop_name}: {prop_config['default']}"
-            )
-    elif prop_config["type"] == "int":
-        if not isinstance(prop_config["default"], int):
-            raise TypeError(
-                f"Invalid default type for property {prop_name}"
-                f" expecting int: {type(prop_config['default'])}"
-            )
-        if (
-            not -(1 << (prop_config["width"] - 1))
-            <= prop_config["default"]
-            < (1 << (prop_config["width"] - 1))
-        ):
-            raise ValueError(
-                f"Invalid default value for property {prop_name}"
-                f": {prop_config['default']}"
-            )
+        width = prop_config["width"]
+        if prop_type == "uint":
+            if not 0 <= default_value < (1 << width):
+                raise ValueError(
+                    f"Invalid default value for property"
+                    f" {prop_name}: {default_value}"
+                )
+        else:  # prop_type == "int"
+            if not -(1 << (width - 1)) <= default_value < (1 << (width - 1)):
+                raise ValueError(
+                    f"Invalid default value for property {prop_name}"
+                    f": {default_value}"
+                )
 
 
 def _validate_bitdict_properties(
@@ -290,7 +285,9 @@ def _check_overlapping(cfg) -> None:
             used_bits.add(i)
 
 
-def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
+def bitdict_factory(  # pylint: disable=too-many-statements
+    config: dict[str, Any], name: str = "BitDict"
+) -> type:
     """
     Factory function to create BitDict classes based on a configuration.
 
@@ -556,37 +553,44 @@ def bitdict_factory(config: dict[str, Any], name: str = "BitDict") -> type:
             width = prop_config["width"]
             mask = (1 << width) - 1
 
-            if prop_config["type"] == "bool":
-                if not isinstance(value, (bool, int)):
-                    raise TypeError(
-                        f"Expected boolean or integer value for property '{key}'"
-                    )
-                value = 1 if value else 0
-            elif prop_config["type"] == "uint":
-                if not isinstance(value, int):
-                    raise TypeError(f"Expected integer value for property '{key}'")
-                if not 0 <= value < (1 << width):
-                    raise ValueError(f"Value {value} out of range for property '{key}'")
-            elif prop_config["type"] == "int":
-                if not isinstance(value, int):
-                    raise TypeError(f"Expected integer value for property '{key}'")
-                if not -(1 << (width - 1)) <= value < (1 << (width - 1)):
-                    raise ValueError(f"Value {value} out of range for property '{key}'")
-                # Convert to two's complement representation
-                if value < 0:
-                    value = (1 << width) + value
-            elif prop_config["type"] == "bitdict":
-                # Set the sub-bitdict value.
-                selector_value = self[prop_config["selector"]]
-                assert isinstance(selector_value, int), "Selector must be an integer"
-                bd: BitDict = self._get_subbitdict(key, selector_value)
-                bd.set(value)
-                value = bd.to_int()
-            elif prop_config["type"] == "reserved":
-                # You can't *set* reserved bits.
-                raise ValueError(f"Cannot set reserved property '{key}'")
-            else:
-                assert False, f"Unknown property type: {prop_config['type']}"
+            match prop_config["type"]:
+                case "bool":
+                    if not isinstance(value, (bool, int)):
+                        raise TypeError(
+                            f"Expected boolean or integer value for property '{key}'"
+                        )
+                    value = 1 if value else 0
+                case "uint":
+                    if not isinstance(value, int):
+                        raise TypeError(f"Expected integer value for property '{key}'")
+                    if not 0 <= value < (1 << width):
+                        raise ValueError(
+                            f"Value {value} out of range for property '{key}'"
+                        )
+                case "int":
+                    if not isinstance(value, int):
+                        raise TypeError(f"Expected integer value for property '{key}'")
+                    if not -(1 << (width - 1)) <= value < (1 << (width - 1)):
+                        raise ValueError(
+                            f"Value {value} out of range for property '{key}'"
+                        )
+                    # Convert to two's complement representation
+                    if value < 0:
+                        value = (1 << width) + value
+                case "bitdict":
+                    # Set the sub-bitdict value.
+                    selector_value = self[prop_config["selector"]]
+                    assert isinstance(
+                        selector_value, int
+                    ), "Selector must be an integer"
+                    bd: BitDict = self._get_subbitdict(key, selector_value)
+                    bd.set(value)
+                    value = bd.to_int()
+                case "reserved":
+                    # You can't *set* reserved bits.
+                    raise ValueError(f"Cannot set reserved property '{key}'")
+                case _:
+                    assert False, f"Unknown property type: {prop_config['type']}"
 
             # If the property is a selector then the sub-bitdict
             # changes and we need to update the value
