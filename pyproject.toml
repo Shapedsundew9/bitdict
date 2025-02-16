@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "bitdict"
-version = "1.0.0-beta"
+version = "1.0.4-beta"
 requires-python = ">= 3.10"
 description = "BitDict is a Python library for creating custom bit-packed data structures with dynamically defined substructures."
 authors = [{ name = "Shaped Sundew", email = "shapedsundew9@gmail.com" }]
