@@ -9,7 +9,6 @@ requires-python = ">= 3.10"
 description = "BitDict is a Python library for creating custom bit-packed data structures with dynamically defined substructures."
 authors = [{ name = "Shaped Sundew", email = "shapedsundew9@gmail.com" }]
 readme = "README.md"
-license-files = ["LICEN[CS]E*"]
 keywords = ["bitstruct", "bitfield", "bitpacked"]
 classifiers = [
   "Development Status :: 4 - Beta",
