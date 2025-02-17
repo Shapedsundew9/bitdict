@@ -126,21 +126,6 @@ class TestBitDictFactory(unittest.TestCase):
         with self.assertRaises(ValueError):
             bitdict_factory({"field1": {"start": 0, "width": 2, "type": "bool"}})
 
-    def test_factory_reserved_default(self):
-        """
-        Test that a ValueError is raised when a bitdict factory is created with a reserved
-        field that has a default value.
-
-        Reserved fields should not have default values, as their values are not meant
-        to be set or modified directly.
-        This test ensures that the bitdict factory correctly identifies and rejects
-        such configurations.
-        """
-        with self.assertRaises(ValueError):
-            bitdict_factory(
-                {"field1": {"start": 0, "width": 4, "type": "reserved", "default": 0}}
-            )
-
     def test_factory_invalid_uint_default(self):
         """
         Test that the bitdict_factory raises a ValueError when a uint
@@ -294,6 +279,118 @@ class TestBitDictFactory(unittest.TestCase):
                 }
             )
 
+    def test_factory_valid_config_with_valid_key(self):
+        """Test that bitdict_factory correctly handles configurations with the 'valid' key."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"value": {0, 1, 2}},
+            },
+            "field2": {
+                "start": 4,
+                "width": 1,
+                "type": "bool",
+                "valid": {"value": {True}},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict(0x12)
+        self.assertTrue(bd.valid())
+        bd["field1"] = 1
+        self.assertTrue(bd.valid())
+        bd["field1"] = 3
+        self.assertFalse(bd.valid())
+
+    def test_factory_invalid_valid_key(self):
+        """Test that bitdict_factory raises a ValueError for invalid 'valid' key configurations."""
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "valid": {}},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "valid": {"value": []}},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"value": set()},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "valid": {"range": []}},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_valid_config_with_invalid_values(self):
+        """Test that bitdict_factory raises a ValueError for invalid values in the 'valid' key."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"value": {16}},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_valid_method(self):
+        """Test the valid method of the BitDict class."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"value": {0, 1, 2}},
+            },
+            "field2": {
+                "start": 4,
+                "width": 1,
+                "type": "bool",
+                "valid": {"value": {True}},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict(0x12)
+        self.assertTrue(bd.valid())
+        bd["field1"] = 3
+        self.assertFalse(bd.valid())
+
+    def test_inspect_method(self):
+        """Test the inspect method of the BitDict class."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"value": {0, 1, 2}},
+            },
+            "field2": {
+                "start": 4,
+                "width": 1,
+                "type": "bool",
+                "valid": {"value": {True}},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict(0x12)
+        self.assertEqual(bd.inspect(), {})
+        bd["field1"] = 3
+        self.assertEqual(bd.inspect(), {"field1": 3})
+
 
 class TestBitDict(unittest.TestCase):
     """
@@ -335,7 +432,7 @@ class TestBitDict(unittest.TestCase):
         self.config = {
             "Constant": {"start": 7, "width": 1, "type": "bool"},
             "Mode": {"start": 6, "width": 1, "type": "bool"},
-            "Reserved": {"start": 4, "width": 2, "type": "reserved"},
+            "Reserved": {"start": 4, "width": 2, "type": "uint"},
             "SubValue": {
                 "start": 0,
                 "width": 4,
@@ -469,20 +566,6 @@ class TestBitDict(unittest.TestCase):
         with self.assertRaises(TypeError):
             bd["SubValue"]["PropB"] = "string"
 
-    def test_reserved(self):
-        """Test that the 'Reserved' field cannot be accessed or modified.
-
-        This test ensures that the 'Reserved' field in the BitDict, which is
-        intended to be reserved and not directly manipulated, raises a ValueError
-        when an attempt is made to either read from or write to it. This enforces
-        the intended immutability of the reserved bits.
-        """
-        bd = self.my_bitdict(0x8C)
-        with self.assertRaises(ValueError):
-            _ = bd["Reserved"]  # Check cannot read
-        with self.assertRaises(ValueError):
-            bd["Reserved"] = 1  # Check cannot set
-
     def test_nested_bitdict(self):
         """Test nested BitDict functionality.
 
@@ -549,13 +632,14 @@ class TestBitDict(unittest.TestCase):
         bd = self.my_bitdict(0x8C)
         expected_order = [
             "SubValue",
+            "Reserved",
             "Mode",
             "Constant",
         ]  # LSB to MSB order
         actual_order = [name for name, _ in bd]
         self.assertEqual(actual_order, expected_order)
 
-        expected_values = [(True, False, None, -1, 0), (True, True, None, True, 1)]
+        expected_values = [(True, False, 0, -1, 0), (True, True, 0, True, 1)]
         mode = 0
         for constant, mode_val, reserved, sub_prop_b, sub_prop_a in [
             expected_values[0]
@@ -582,7 +666,7 @@ class TestBitDict(unittest.TestCase):
         bd = self.my_bitdict(0x8C)
         self.assertEqual(
             repr(bd),
-            "MyBitDict({'Constant': True, 'Mode': False, 'SubValue': {'PropB': -1, 'PropA': 0}})",
+            "MyBitDict({'Constant': True, 'Mode': False, 'Reserved': 0, 'SubValue': {'PropB': -1, 'PropA': 0}})",
         )
 
     def test_str(self):
@@ -590,7 +674,7 @@ class TestBitDict(unittest.TestCase):
         bd = self.my_bitdict(0x8C)
         self.assertEqual(
             str(bd),
-            "{'Constant': True, 'Mode': False, 'SubValue': {'PropB': -1, 'PropA': 0}}",
+            "{'Constant': True, 'Mode': False, 'Reserved': 0, 'SubValue': {'PropB': -1, 'PropA': 0}}",
         )
 
     def test_update(self):
@@ -622,6 +706,7 @@ class TestBitDict(unittest.TestCase):
         expected_json = {
             "Constant": True,
             "Mode": False,
+            "Reserved": 0,
             "SubValue": {"PropA": 0, "PropB": -1},
         }
         self.assertEqual(bd.to_json(), expected_json)
@@ -630,6 +715,7 @@ class TestBitDict(unittest.TestCase):
         expected_json = {
             "Constant": True,
             "Mode": True,
+            "Reserved": 0,
             "SubValue": {"PropC": 1, "PropD": True},
         }
         self.assertEqual(bd.to_json(), expected_json)
@@ -846,6 +932,7 @@ class TestBitDict(unittest.TestCase):
         expected_json = {
             "Constant": True,
             "Mode": True,
+            "Reserved": 0,
             "SubValue": {"PropC": 1, "PropD": True},
         }
         self.assertEqual(bd.to_json(), expected_json)
@@ -1457,6 +1544,229 @@ class TestBitDict(unittest.TestCase):
         with self.assertRaises(ValueError):
             bd.set(-1)
 
+    def test_factory_valid_key_bitdict_type(self):
+        """Test that bitdict_factory does not allow 'valid' key for 'bitdict' type."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "subtype": [{"nested": {"start": 0, "width": 2, "type": "uint"}}],
+                "selector": "field2",
+                "valid": {"value": {0}},
+            },
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
 
-if __name__ == "__main__":
-    unittest.main()
+    def test_factory_invalid_valid_key_not_dict(self):
+        """Test that bitdict_factory raises a ValueError when 'valid' key is not a dictionary."""
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "valid": "not a dict"},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_invalid_valid_key_empty_dict(self):
+        """Test that bitdict_factory raises a ValueError when 'valid' key is an empty dictionary."""
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "valid": {}},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_invalid_valid_key_missing_range_value(self):
+        """Test that bitdict_factory raises a ValueError when neither
+        range nor value are present."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"unknown": []},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_invalid_valid_key_range_not_list(self):
+        """Test that bitdict_factory raises a ValueError when 'range' in 'valid' is not a list."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"range": "not a list"},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_invalid_valid_key_range_not_tuple(self):
+        """Test that bitdict_factory raises a ValueError when an element in 'range' is not a tuple."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"range": [1, 2, 3]},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_valid_config_with_valid_range(self):
+        """Test that bitdict_factory correctly handles configurations with the 'range' key."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"range": [(0, 4)]},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        bd["field1"] = 0
+        self.assertTrue(bd.valid())
+        bd["field1"] = 3
+        self.assertTrue(bd.valid())
+        bd["field1"] = 4
+        self.assertFalse(bd.valid())
+
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"range": [(0, 2), (3, 4)]},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        bd["field1"] = 0
+        self.assertTrue(bd.valid())
+        bd["field1"] = 1
+        self.assertTrue(bd.valid())
+        bd["field1"] = 3
+        self.assertTrue(bd.valid())
+        bd["field1"] = 2
+        self.assertFalse(bd.valid())
+        bd["field1"] = 4
+        self.assertFalse(bd.valid())
+
+    def test_factory_invalid_valid_key_value_type(self):
+        """Test that bitdict_factory raises a ValueError when a value in the 'value' set is not an int or bool."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"value": {0, "string"}},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_invalid_valid_key_range_out_of_bounds_uint(self):
+        """Test that bitdict_factory raises a ValueError when a range in 'valid' contains a value out of bounds for a uint."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "uint",
+                "valid": {"range": [(0, 17)]},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_factory_invalid_valid_key_range_out_of_bounds_int(self):
+        """Test that bitdict_factory raises a ValueError when a range in 'valid' contains a value out of bounds for an int."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "int",
+                "valid": {"range": [(-8, 9)]},
+            },
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)
+
+    def test_valid_nested_bitdict(self):
+        """Test the valid method with a nested BitDict."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 1,
+                "type": "bool",
+            },
+            "field2": {
+                "start": 1,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field1",
+                "subtype": [
+                    {
+                        "nested_field1": {
+                            "start": 0,
+                            "width": 2,
+                            "type": "uint",
+                            "valid": {"value": {0, 1}},
+                        }
+                    },
+                    {
+                        "nested_field2": {
+                            "start": 0,
+                            "width": 2,
+                            "type": "uint",
+                            "valid": {"value": {2, 3}},
+                        }
+                    },
+                ],
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+
+        # Valid case
+        bd["field1"] = False
+        bd["field2"]["nested_field1"] = 0
+        self.assertTrue(bd.valid())
+
+        # Invalid case
+        bd["field1"] = False
+        bd["field2"]["nested_field1"] = 2
+        self.assertFalse(bd.valid())
+
+        # Valid case
+        bd["field1"] = True
+        bd["field2"]["nested_field2"] = 2
+        self.assertTrue(bd.valid())
+
+        # Invalid case
+        bd["field1"] = True
+        bd["field2"]["nested_field2"] = 1
+        self.assertFalse(bd.valid())
+
+    def test_factory_valid_config_invalid_selector_value(self):
+        """Test that bitdict_factory raises a ValueError when the selector for a nested bitdict has an invalid value."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field2",
+                "subtype": [
+                    {"nested_field1": {"start": 0, "width": 2, "type": "uint"}},
+                    {"nested_field2": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "field2": {"start": 4, "width": 2, "type": "uint"},
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        with self.assertRaises(IndexError):
+            bd["field2"] = 3

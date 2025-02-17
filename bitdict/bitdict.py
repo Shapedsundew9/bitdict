@@ -74,6 +74,7 @@ def _validate_property_config(
     for prop_name, prop_config in prop_config_top.items():
         _validate_basic_properties(prop_name, prop_config)
         _validate_default_values(prop_name, prop_config)
+        _validate_valid_key(prop_name, prop_config)
 
         if prop_config["type"] == "bitdict":
             _validate_bitdict_properties(
@@ -102,6 +103,7 @@ def _validate_basic_properties(prop_name: str, prop_config: dict[str, Any]) -> N
     _validate_config_type_and_keys(prop_config)
     _validate_start_and_width(prop_config)
     _validate_type(prop_config)
+    _validate_valid_key(prop_name, prop_config)
 
 
 def _validate_property_name(prop_name: str) -> None:
@@ -132,7 +134,7 @@ def _validate_start_and_width(prop_config: dict[str, Any]) -> None:
 
 def _validate_type(prop_config: dict[str, Any]) -> None:
     """Validates the type value in the property configuration."""
-    valid_types = {"bool", "uint", "int", "reserved", "bitdict"}
+    valid_types = {"bool", "uint", "int", "bitdict"}
     if prop_config["type"] not in valid_types:
         raise ValueError(f"Invalid type value: {prop_config['type']}")
     if prop_config["type"] == "bool" and prop_config["width"] != 1:
@@ -156,18 +158,16 @@ def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> Non
             'default' value.
 
     Raises:
-        ValueError: If the property type is 'reserved' or 'bitdict' and a default
+        ValueError: If the property type is 'bitdict' and a default
             value is provided, or if the default value for 'uint' or 'int' is
             outside the allowed range.
         TypeError: If the default value does not match the expected type
             (bool for 'bool', int for 'uint' and 'int').
     """
     prop_type = prop_config["type"]
-    if prop_type in ("reserved", "bitdict"):
-        if "default" in prop_config:  # No default allowed for reserved
-            raise ValueError(
-                "'reserved' and 'bitdict' types cannot have a default values."
-            )
+    if prop_type == "bitdict":
+        if "default" in prop_config:
+            raise ValueError("'bitdict' types cannot have a default values.")
         return
 
     if "default" not in prop_config:
@@ -279,11 +279,105 @@ def _validate_bitdict_properties(
             f"'bitdict' type for property '{prop_name}' must have at least one subtype"
         )
 
-    for sub_config in prop_config["subtype"]:
+    for idx, sub_config in enumerate(prop_config["subtype"]):
         # Recursively validate sub-configurations
         subtypes.setdefault(prop_name, []).append(
             None if sub_config is None else bitdict_factory(sub_config)
         )  # We can use the factory recursively
+        if sub_config is None and _is_valid_value(idx, prop_config_top[selector]):
+            raise ValueError(
+                f"Subtype {idx} for property '{prop_name}' "
+                "is a valid selection but no bitdict defined."
+            )
+
+
+def _validate_valid_key(prop_name: str, prop_config: dict[str, Any]) -> None:
+    """Validates the 'valid' key in the property configuration."""
+    if prop_config["type"] == "bitdict":
+        if "valid" in prop_config:
+            raise ValueError(f"'valid' key not allowed for {prop_config['type']} type")
+        return
+
+    if "valid" not in prop_config:
+        return
+
+    valid_config = prop_config["valid"]
+    if not isinstance(valid_config, dict):
+        raise ValueError(f"'valid' must be a dictionary for property {prop_name}")
+
+    if not valid_config:
+        raise ValueError(f"'valid' dictionary cannot be empty for property {prop_name}")
+
+    if "value" not in valid_config and "range" not in valid_config:
+        raise ValueError(
+            f"'valid' dictionary must contain 'value' or 'range' for property {prop_name}"
+        )
+
+    if "value" in valid_config:
+        if not isinstance(valid_config["value"], set):
+            raise ValueError(
+                f"'value' in 'valid' dictionary must be a set for property {prop_name}"
+            )
+        if not valid_config["value"]:
+            raise ValueError(
+                f"'value' set in 'valid' dictionary cannot be empty for property {prop_name}"
+            )
+        for val in valid_config["value"]:
+            if not isinstance(val, (int, bool)):
+                raise ValueError(
+                    f"Invalid value type in 'valid' set for property {prop_name}: {val}"
+                )
+            if not _is_value_in_range(val, prop_config):
+                raise ValueError(f"Value {val} out of range for property {prop_name}")
+
+    if "range" in valid_config:
+        if not isinstance(valid_config["range"], list):
+            raise ValueError(
+                f"'range' in 'valid' dictionary must be a list for property {prop_name}"
+            )
+        if not valid_config["range"]:
+            raise ValueError(
+                f"'range' list in 'valid' dictionary cannot be empty for property {prop_name}"
+            )
+        for r in valid_config["range"]:
+            if not isinstance(r, tuple) or not 1 <= len(r) <= 3:
+                raise ValueError(
+                    f"Invalid range tuple in 'valid' list for property {prop_name}: {r}"
+                )
+            for val in range(*r):
+                if not _is_value_in_range(val, prop_config):
+                    raise ValueError(
+                        f"Value {val} out of range for property {prop_name}"
+                    )
+
+
+def _is_valid_value(value: int | bool, prop_config: dict[str, Any]) -> bool:
+    """Checks if a value is valid according to the 'valid'
+    key in the property configuration."""
+    if "valid" not in prop_config:
+        return True
+
+    valid_config = prop_config["valid"]
+    if "value" in valid_config and value in valid_config["value"]:
+        return True
+
+    if "range" in valid_config:
+        for r in valid_config["range"]:
+            if value in range(*r):
+                return True
+
+    return False
+
+
+def _is_value_in_range(value: int | bool, prop_config: dict[str, Any]) -> bool:
+    """Checks if a value is within the allowed range for a property."""
+    if prop_config["type"] == "bool":
+        return value in (True, False)
+    width = prop_config["width"]
+    if prop_config["type"] == "uint":
+        return 0 <= value < (1 << width)
+    assert prop_config["type"] == "int", "Unexpected property type"
+    return -(1 << (width - 1)) <= value < (1 << (width - 1))
 
 
 def _check_overlapping(cfg) -> None:
@@ -553,9 +647,6 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 bd: BitDict = self._get_subbitdict(key, selector_value)
                 return bd
 
-            if prop_config["type"] == "reserved":
-                raise ValueError(f"Cannot read a reserved property '{key}'")
-
             assert False, f"Unknown property type: {prop_config['type']}"
 
         def __setitem__(self, key: str, value: bool | int) -> None:
@@ -612,9 +703,6 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                     bd: BitDict = self._get_subbitdict(key, selector_value)
                     bd.set(value)
                     value = bd.to_int()
-                case "reserved":
-                    # You can't *set* reserved bits.
-                    raise ValueError(f"Cannot set reserved property '{key}'")
                 case _:
                     assert False, f"Unknown property type: {prop_config['type']}"
 
@@ -683,7 +771,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 The values can be of type bool, Any, BitDict, or None.
             """
             sps = sorted(self._config.items(), key=lambda item: item[1]["start"])
-            for name, _ in (sp for sp in sps if sp[1]["type"] != "reserved"):
+            for name, _ in sps:
                 yield name, self[name]
 
         def __repr__(self) -> str:
@@ -736,13 +824,18 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 self._subbitdicts[key] = [None] * 2**width
             sdk: list[BitDict | None] = self._subbitdicts[key]
             if sdk[selector_value] is None:
+                if selector_value >= len(self._subtypes[key]):
+                    raise IndexError(
+                        "Subtype class not created for selector"
+                        f" {prop_config['selector']} at index {selector_value}"
+                    )
                 bdtype: type[BitDict] | None = self._subtypes[key][selector_value]
                 assert bdtype is not None, "Subtype class not created!"
                 nbd = bdtype()
                 nbd._set_parent(self, key)  # pylint: disable=protected-access
                 sdk[selector_value] = nbd
             retval: BitDict | None = sdk[selector_value]
-            assert retval is not None, "Subtype class object does not exist!"
+            assert retval is not None, "Subtype class not created!"
             return retval
 
         def _set_parent(self, parent: BitDict, key: str) -> None:
@@ -789,8 +882,6 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             """
 
             for prop_name, prop_config in self._config.items():
-                if prop_config["type"] == "reserved":
-                    continue
                 if prop_config["type"] == "bitdict":
                     selector_value = self[prop_config["selector"]]
                     assert isinstance(
@@ -914,6 +1005,54 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             """
 
             return self._value
+
+        def valid(self) -> bool:
+            """Checks if all properties have valid values."""
+            for prop_name, prop_config in self._config.items():
+                if prop_config["type"] == "bitdict":
+                    selector_value = self[prop_config["selector"]]
+                    assert isinstance(
+                        selector_value, int
+                    ), "Selector must be an integer"
+                    if not _is_valid_value(selector_value, prop_config):
+                        return False
+                    sub_bitdict = self._get_subbitdict(prop_name, selector_value)
+                    if not sub_bitdict.valid():
+                        return False
+                else:
+
+                    value = self[prop_name]
+                    assert isinstance(
+                        value, (int, bool)
+                    ), "Value must be an integer or boolean"
+                    if not _is_valid_value(value, prop_config):
+                        return False
+            return True
+
+        def inspect(self) -> dict[str, dict[str, bool | int | dict]]:
+            """Inspects the BitDict and returns a dictionary of properties with invalid values."""
+            invalid_props = {}
+            for prop_name, prop_config in self._config.items():
+                if prop_config["type"] == "bitdict":
+                    selector_value = self[prop_config["selector"]]
+                    assert isinstance(
+                        selector_value, int
+                    ), "Selector must be an integer"
+                    if not _is_valid_value(selector_value, prop_config):
+                        invalid_props[prop_name] = selector_value
+                    else:
+                        sub_bitdict = self._get_subbitdict(prop_name, selector_value)
+                        sub_invalid_props = sub_bitdict.inspect()
+                        if sub_invalid_props:
+                            invalid_props[prop_name] = sub_invalid_props
+                else:
+                    value = self[prop_name]
+                    assert isinstance(
+                        value, (int, bool)
+                    ), "Value must be an integer or boolean"
+                    if not _is_valid_value(value, prop_config):
+                        invalid_props[prop_name] = self[prop_name]
+            return invalid_props
 
         @classmethod
         def get_config(cls) -> MappingProxyType[str, Any]:
