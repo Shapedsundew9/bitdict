@@ -1014,7 +1014,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                     assert isinstance(
                         selector_value, int
                     ), "Selector must be an integer"
-                    if not _is_valid_value(selector_value, prop_config):
+                    if not _is_valid_value(
+                        selector_value, self._config[prop_config["selector"]]
+                    ):
                         return False
                     sub_bitdict = self._get_subbitdict(prop_name, selector_value)
                     if not sub_bitdict.valid():
@@ -1038,8 +1040,10 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                     assert isinstance(
                         selector_value, int
                     ), "Selector must be an integer"
-                    if not _is_valid_value(selector_value, prop_config):
-                        invalid_props[prop_name] = selector_value
+                    if not _is_valid_value(
+                        selector_value, self._config[prop_config["selector"]]
+                    ):
+                        invalid_props[prop_config["selector"]] = selector_value
                     else:
                         sub_bitdict = self._get_subbitdict(prop_name, selector_value)
                         sub_invalid_props = sub_bitdict.inspect()

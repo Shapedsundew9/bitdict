@@ -1752,7 +1752,8 @@ class TestBitDict(unittest.TestCase):
         self.assertFalse(bd.valid())
 
     def test_factory_valid_config_invalid_selector_value(self):
-        """Test that bitdict_factory raises a ValueError when the selector for a nested bitdict has an invalid value."""
+        """Test that bitdict_factory raises a ValueError when the selector
+        for a nested bitdict has an invalid value."""
         config = {
             "field1": {
                 "start": 0,
@@ -1770,3 +1771,152 @@ class TestBitDict(unittest.TestCase):
         bd = MyBitDict()
         with self.assertRaises(IndexError):
             bd["field2"] = 3
+
+    def test_factory_valid_config_invalid_subconfig(self):
+        """Test that bitdict_factory raises a ValueError when the selector
+        for a nested bitdict has an invalid value."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field2",
+                "subtype": [
+                    {"nested_field1": {"start": 0, "width": 2, "type": "uint"}},
+                    None,
+                    {"nested_field2": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "field2": {"start": 4, "width": 2, "type": "uint"},
+        }
+        with self.assertRaises(ValueError):
+            _ = bitdict_factory(config)
+
+    def test_valid_bitdict_selector_value(self):
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field2",
+                "subtype": [
+                    {"nested_field1": {"start": 0, "width": 2, "type": "uint"}},
+                    {"nested_field2": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "field2": {
+                "start": 4,
+                "width": 2,
+                "type": "uint",
+                "valid": {"value": {0, 1}},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        bd._value = 0x30  # pylint: disable=protected-access
+        self.assertFalse(bd.valid())
+
+    def test_inspect_nested_bitdict(self):
+        """Test the inspect method with a nested BitDict."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 1,
+                "type": "bool",
+            },
+            "field2": {
+                "start": 1,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field1",
+                "subtype": [
+                    {
+                        "nested_field1": {
+                            "start": 0,
+                            "width": 2,
+                            "type": "uint",
+                            "valid": {"value": {0, 1}},
+                        }
+                    },
+                    {
+                        "nested_field2": {
+                            "start": 0,
+                            "width": 2,
+                            "type": "uint",
+                            "valid": {"value": {2, 3}},
+                        }
+                    },
+                ],
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+
+        # Valid case
+        bd["field1"] = False
+        bd["field2"]["nested_field1"] = 0
+        self.assertEqual(bd.inspect(), {})
+
+        # Invalid case
+        bd["field1"] = False
+        bd["field2"]["nested_field1"] = 2
+        self.assertEqual(bd.inspect(), {"field2": {"nested_field1": 2}})
+
+        # Valid case
+        bd["field1"] = True
+        bd["field2"]["nested_field2"] = 2
+        self.assertEqual(bd.inspect(), {})
+
+        # Invalid case
+        bd["field1"] = True
+        bd["field2"]["nested_field2"] = 1
+        self.assertEqual(bd.inspect(), {"field2": {"nested_field2": 1}})
+
+    def test_inspect_bitdict_selector_value(self):
+        """Test the inspect method when the selector value is invalid."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field2",
+                "subtype": [
+                    {"nested_field1": {"start": 0, "width": 2, "type": "uint"}},
+                    {"nested_field2": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+            },
+            "field2": {
+                "start": 4,
+                "width": 2,
+                "type": "uint",
+                "valid": {"value": {0, 1}},
+            },
+        }
+        MyBitDict = bitdict_factory(config)
+        bd = MyBitDict()
+        bd._value = 0x30  # pylint: disable=protected-access
+        self.assertEqual(bd.inspect(), {"field2": 3})
+
+    def test__bitdict_config_with_default(self):
+        """Test the inspect method when the selector value is invalid."""
+        config = {
+            "field1": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "field2",
+                "subtype": [
+                    {"nested_field1": {"start": 0, "width": 2, "type": "uint"}},
+                    {"nested_field2": {"start": 0, "width": 2, "type": "uint"}},
+                ],
+                "default": 0,
+            },
+            "field2": {
+                "start": 4,
+                "width": 2,
+                "type": "uint",
+                "valid": {"value": {0, 1}},
+            },
+        }
+        with self.assertRaises(ValueError):
+            _ = bitdict_factory(config)
