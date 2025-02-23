@@ -8,12 +8,12 @@ from bitdict import generate_markdown_tables, bitdict_factory
 
 class TestMarkdown(unittest.TestCase):
     """
-    Unit tests for the config_to_markdown function.
+    Unit tests for the generate_markdown_tables function.
     """
 
-    def test_config_to_markdown_simple(self):
+    def test_generate_markdown_tables_simple(self):
         """
-        Test config_to_markdown with a simple configuration.
+        Test generate_markdown_tables with a simple configuration.
         """
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
@@ -27,9 +27,9 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue("| field1 | uint | 3:0 | 0 |  |" in markdown_tables[0])
         self.assertTrue("| field2 | bool | 4 | False |  |" in markdown_tables[0])
 
-    def test_config_to_markdown_with_defaults(self):
+    def test_generate_markdown_tables_with_defaults(self):
         """
-        Test config_to_markdown with default values.
+        Test generate_markdown_tables with default values.
         """
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint", "default": 5},
@@ -40,9 +40,9 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue("| field1 | uint | 3:0 | 5 |  |" in markdown_tables[0])
         self.assertTrue("| field2 | bool | 4 | True |  |" in markdown_tables[0])
 
-    def test_config_to_markdown_with_valid(self):
+    def test_generate_markdown_tables_with_valid(self):
         """
-        Test config_to_markdown with valid values.
+        Test generate_markdown_tables with valid values.
         """
         config = {
             "field1": {
@@ -69,9 +69,9 @@ class TestMarkdown(unittest.TestCase):
             in markdown_tables[0]
         )
 
-    def test_config_to_markdown_with_bitdict(self):
+    def test_generate_markdown_tables_with_bitdict(self):
         """
-        Test config_to_markdown with a bitdict.
+        Test generate_markdown_tables with a bitdict.
         """
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
@@ -90,9 +90,9 @@ class TestMarkdown(unittest.TestCase):
             in markdown_tables[0]
         )
 
-    def test_config_to_markdown_without_types(self):
+    def test_generate_markdown_tables_without_types(self):
         """
-        Test config_to_markdown without types.
+        Test generate_markdown_tables without types.
         """
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
@@ -108,9 +108,9 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue("| field1 | 3:0 | 0 |  |" in markdown_tables[0])
         self.assertTrue("| field2 | 4 | False |  |" in markdown_tables[0])
 
-    def test_config_to_markdown_undefined_bits(self):
+    def test_generate_markdown_tables_undefined_bits(self):
         """
-        Test config_to_markdown with undefined bits.
+        Test generate_markdown_tables with undefined bits.
         """
         config = {
             "field1": {"start": 2, "width": 4, "type": "uint"},
@@ -122,9 +122,9 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue("| field1 | uint | 5:2 | 0 |  |" in markdown_tables[0])
         self.assertTrue("| field2 | bool | 7 | False |  |" in markdown_tables[0])
 
-    def test_config_to_markdown_undefined_bits_no_types(self):
+    def test_generate_markdown_tables_undefined_bits_no_types(self):
         """
-        Test config_to_markdown with undefined bits.
+        Test generate_markdown_tables with undefined bits.
         """
         config = {
             "field1": {"start": 2, "width": 4, "type": "uint"},
@@ -138,9 +138,9 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue("| field1 | 5:2 | 0 |  |" in markdown_tables[0])
         self.assertTrue("| field2 | 7 | False |  |" in markdown_tables[0])
 
-    def test_config_to_markdown_valid_range(self):
+    def test_generate_markdown_tables_valid_range(self):
         """
-        Test config_to_markdown with valid range.
+        Test generate_markdown_tables with valid range.
         """
         config = {
             "field1": {
@@ -157,8 +157,8 @@ class TestMarkdown(unittest.TestCase):
             in markdown_tables[0]
         )
 
-    def test_config_to_markdown_complex(self):
-        """Test config_to_markdown with a complex configuration including nested bitdicts,
+    def test_generate_markdown_tables_complex(self):
+        """Test generate_markdown_tables with a complex configuration including nested bitdicts,
         selectors, valid ranges, and default values.
         """
         config = {
