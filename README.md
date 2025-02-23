@@ -1,4 +1,3 @@
-
 # bitdict
 
 [![Build Status](https://github.com/Shapedsundew9/bitdict/actions/workflows/python-package.yml/badge.svg)](https://github.com/Shapedsundew9/bitdict/actions/workflows/python-package.yml)
@@ -69,8 +68,39 @@ The configuration for a BitDict is a dictionary that defines the structure of th
 - `default` (optional): The default value for the bit field. If not provided, defaults to False for 'bool', 0 for 'uint' and 'int'.
 - `subtype` (list of dict, optional): Required for 'bitdict' type. Ignored for other types. A list of sub-bitdict configurations to select from based on the value of the selector property.
 - `selector` (str, optional): Required for 'bitdict' type. Ignored for other types. The name of the property used to select the active sub-bitdict. This property must be of type 'bool' or 'uint' and have a width <= 16.
+- `description` (str, optional): Arbitary text that is only used in `the generate_markdown_tables` documentation generation function.
+- `valid` (dict, optional): A dictionary defining valid values or ranges for the bit field. Cannot be used with 'bitdict' type.
+  - `value` (set, optional): A set of valid values for the field. Each value must be an integer or boolean.
+  - `range` (list of tuples, optional): A list of valid ranges for the field. Each tuple must contain one, two or 3 integers representing the start (inclusive) and end (exclusive) of the range and the step. Note that both `value` and `range` may be defined and may overlap.
 
 ## API
+
+### generate_markdown_tables Function
+
+The `generate_markdown_tables` function converts a bitdict configuration dictionary into a list of markdown tables.
+
+- `generate_markdown_tables(config: dict, include_types: bool = True) -> list[str]`: Converts a bitdict configuration dictionary into a list of markdown tables.
+  - `config` (dict): The bitdict configuration dictionary that needs to be converted.
+  - `include_types` (bool, optional): A boolean to indicate if data types should be included in the output. Defaults to True.
+  - Returns: A list of formatted markdown strings representing the bitdict configuration in table format.
+
+Using the example configuration above:
+
+```python
+print(generate_markdown_tables(MyBitDict)[0])
+```
+
+returns
+
+```markdown
+## BitDict
+
+| Name | Type | Bitfield | Default | Description |
+|---|:-:|:-:|:-:|---|
+| enabled | bool | 0 | False |  |
+| mode | uint | 2:1 | 0 |  |
+| value | int | 7:3 | 0 |  |
+```
 
 ### BitDict Class
 
@@ -101,7 +131,7 @@ from bitdict import bitdict_factory
 config = {
     "Constant": {"start": 7, "width": 1, "type": "bool"},
     "Mode": {"start": 6, "width": 1, "type": "bool"},
-    "Reserved": {"start": 4, "width": 2, "type": "reserved"},
+    "Reserved": {"start": 4, "width": 2, "type": "uint"},
     "SubValue": {
         "start": 0,
         "width": 4,
@@ -159,3 +189,47 @@ print(
 ```
 
 This example demonstrates how to define a BitDict with nested sub-bitdicts and selectors, set and access bit fields, and convert the BitDict to and from its integer representation.
+
+Executing
+
+```python
+print('\n\n'.join(generate_markdown_tables(MyBitDict)))
+```
+
+Generates the following markdown.
+
+```markdown
+## BitDict
+
+| Name | Type | Bitfield | Default | Description |
+|---|:-:|:-:|:-:|---|
+| SubValue | bitdict | 3:0 | N/A | See 'SubValue' definition table(s). |
+| Reserved | uint | 5:4 | 0 |  |
+| Mode | bool | 6 | False |  |
+| Constant | bool | 7 | False |  |
+
+## SubValue: Mode = 0
+
+| Name | Type | Bitfield | Default | Description |
+|---|:-:|:-:|:-:|---|
+| PropA | uint | 1:0 | 0 |  |
+| PropB | int | 3:2 | -1 |  |
+
+## SubValue: Mode = 1
+
+| Name | Type | Bitfield | Default | Description |
+|---|:-:|:-:|:-:|---|
+| PropC | uint | 2:0 | 1 |  |
+| PropD | bool | 3 | True |  |
+```
+
+## FAQ
+
+**Question**: What value does a bitfield have when the selector value is changed?
+**Answer**: _When the selector value is changed, the bitfield associated with the selector is reset to its default value._
+
+**Question**: Can you have a bitfield property with the same name as another bitfields property?
+**Answer**: _No, you cannot have a bitfield property with the same name as another bitfield's property within the same BitDict configuration. Each property name within a BitDict configuration must be unique to avoid conflicts and ensure that each bitfield can be correctly identified and accessed._
+
+**Question**: What value does an undefined bitfield have i.e. the bits that are between the defined properties?
+**Answer**: _Undefined bitfields, or the bits that are between the defined properties, are typically set to 0 by default. This ensures that any gaps between defined bitfields do not contain arbitrary or undefined values. This behavior is consistent with the initialization and reset methods in the `BitDict` class, which set all bits to 0 unless specified otherwise._

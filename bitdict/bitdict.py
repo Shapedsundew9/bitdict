@@ -292,7 +292,13 @@ def _validate_bitdict_properties(
     for idx, sub_config in enumerate(prop_config["subtype"]):
         # Recursively validate sub-configurations
         subtypes.setdefault(prop_name, []).append(
-            None if sub_config is None else bitdict_factory(sub_config)
+            None
+            if sub_config is None
+            else bitdict_factory(
+                sub_config,
+                name=f"prop_name{idx}",
+                title=f"{prop_name}: {selector} = {idx}",
+            )
         )  # We can use the factory recursively
         if sub_config is None and _is_valid_value(idx, prop_config_top[selector]):
             raise ValueError(
@@ -431,7 +437,7 @@ def _check_overlapping(cfg) -> None:
 
 
 def bitdict_factory(  # pylint: disable=too-many-statements
-    config: dict[str, Any], name: str = "BitDict"
+    config: dict[str, Any], name: str = "BitDict", title: str = "BitDict"
 ) -> type:
     """
     Factory function to create BitDict classes based on a configuration.
@@ -462,7 +468,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
               This property must be of type 'bool' or 'uint' and have a width <= 16.
 
         name (str, optional): The name of the generated class.
-            Defaults to "BitDict".
+            Defaults to "BitDict". Must be a valid python identifier.
+        title (str, optional): The title of the generated class. Used in generating
+            the markdown documentation with `config_to_markdown`. Defaults to "BitDict".
 
     Returns:
         type: A new class that represents the bit field structure.
@@ -498,11 +506,14 @@ def bitdict_factory(  # pylint: disable=too-many-statements
     """
     if not isinstance(config, dict):
         raise TypeError("config must be a dictionary")
+    if not name.isidentifier():
+        raise ValueError("Invalid class name")
 
     # Subtype classes are stored in a dictionary for recursive creation.
-    subtypes: dict[str, list[type | None]] = {}
+    subtype_lists: dict[str, list[type | None]] = {}
+    _title: str = title
 
-    _validate_property_config(config, subtypes)  # Initial validation of top level.
+    _validate_property_config(config, subtype_lists)  # Initial validation of top level.
     _check_overlapping(config)
     total_width = _calculate_total_width(config)
 
@@ -548,8 +559,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         """
 
         _config: MappingProxyType[str, Any] = MappingProxyType(deepcopy(config))
-        _subtypes: dict[str, list[type | None]] = subtypes
+        subtypes: dict[str, list[type | None]] = subtype_lists
         _total_width: int = total_width
+        title: str = _title
         __name__: str = name
 
         def __init__(
@@ -849,12 +861,12 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 self._subbitdicts[key] = [None] * 2**width
             sdk: list[BitDict | None] = self._subbitdicts[key]
             if sdk[selector_value] is None:
-                if selector_value >= len(self._subtypes[key]):
+                if selector_value >= len(self.subtypes[key]):
                     raise IndexError(
                         "Subtype class not created for selector"
                         f" {prop_config['selector']} at index {selector_value}"
                     )
-                bdtype: type[BitDict] | None = self._subtypes[key][selector_value]
+                bdtype: type[BitDict] | None = self.subtypes[key][selector_value]
                 assert bdtype is not None, "Subtype class not created!"
                 nbd = bdtype()
                 nbd._set_parent(self, key)  # pylint: disable=protected-access

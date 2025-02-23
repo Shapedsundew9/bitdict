@@ -52,7 +52,7 @@ def _get_description(prop_config: dict) -> str:
             description += f"Valid values: {valid_values}. "
         if valid_range:
             description += f"Valid ranges: {valid_range}. "
-    return description
+    return description + prop_config.get("description", "")
 
 
 def _format_row(name: str, prop_config: dict, **kwargs) -> str:
@@ -86,7 +86,7 @@ def _process_property(
 
     if prop_config["type"] == "bitdict":
         default = "N/A"
-        description = f"See {name} definition table."
+        description = f"See '{name}' definition table(s)."
 
     row = _format_row(
         name,
@@ -101,30 +101,32 @@ def _process_property(
     return rows, current_bit
 
 
-def config_to_markdown(config: dict, include_types: bool = True) -> list[str]:
+def generate_markdown_tables(bitdict_t: type, include_types: bool = True) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
 
     Args:
-        config: The bitdict configuration dictionary that needs to be converted.
+        bitdict_t: The bitdict class returned from bitdict_factory().
         include_types: A boolean to indicate if data types should be included in the output.
 
     Returns:
         A list of formatted markdown strings representing the bitdict configuration in table format.
     """
+    _config = bitdict_t.get_config()
     markdown_tables = []
-    table_header = (
+    table_header: str = f"## {bitdict_t.title}\n\n"
+    table_header += (
         "| Name | Type | Bitfield | Default | Description |\n"
         if include_types
         else "| Name | Bitfield | Default | Description |\n"
     )
     table_header += (
-        "|---|---|---|---|---|\n" if include_types else "|---|---|---|---|\n"
+        "|---|:-:|:-:|:-:|---|\n" if include_types else "|---|:-:|:-:|---|\n"
     )
 
     rows = []
     current_bit = 0
-    sorted_properties = sorted(config.items(), key=lambda item: item[1]["start"])
+    sorted_properties = sorted(_config.items(), key=lambda item: item[1]["start"])
 
     for name, prop_config in sorted_properties:
         new_rows, current_bit = _process_property(
@@ -134,5 +136,10 @@ def config_to_markdown(config: dict, include_types: bool = True) -> list[str]:
 
     table = table_header + "\n".join(rows)
     markdown_tables.append(table)
+
+    # Recursively process nested bitdicts
+    for subtypes in bitdict_t.subtypes.values():
+        for subtype in subtypes:
+            markdown_tables.extend(generate_markdown_tables(subtype, include_types))
 
     return markdown_tables

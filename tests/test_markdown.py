@@ -3,7 +3,7 @@ Unit tests for the markdown module.
 """
 
 import unittest
-from bitdict import config_to_markdown
+from bitdict import generate_markdown_tables, bitdict_factory
 
 
 class TestMarkdown(unittest.TestCase):
@@ -19,13 +19,13 @@ class TestMarkdown(unittest.TestCase):
             "field1": {"start": 0, "width": 4, "type": "uint"},
             "field2": {"start": 4, "width": 1, "type": "bool"},
         }
-        markdown_tables = config_to_markdown(config)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue(
             "| Name | Type | Bitfield | Default | Description |" in markdown_tables[0]
         )
-        self.assertTrue("| field1 | uint | 3:0 | N/A |  |" in markdown_tables[0])
-        self.assertTrue("| field2 | bool | 4 | N/A |  |" in markdown_tables[0])
+        self.assertTrue("| field1 | uint | 3:0 | 0 |  |" in markdown_tables[0])
+        self.assertTrue("| field2 | bool | 4 | False |  |" in markdown_tables[0])
 
     def test_config_to_markdown_with_defaults(self):
         """
@@ -35,7 +35,7 @@ class TestMarkdown(unittest.TestCase):
             "field1": {"start": 0, "width": 4, "type": "uint", "default": 5},
             "field2": {"start": 4, "width": 1, "type": "bool", "default": True},
         }
-        markdown_tables = config_to_markdown(config)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue("| field1 | uint | 3:0 | 5 |  |" in markdown_tables[0])
         self.assertTrue("| field2 | bool | 4 | True |  |" in markdown_tables[0])
@@ -58,14 +58,15 @@ class TestMarkdown(unittest.TestCase):
                 "valid": {"value": {True}},
             },
         }
-        markdown_tables = config_to_markdown(config)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue(
-            "| field1 | uint | 3:0 | N/A | Valid values: {1, 2, 3}.  |"
+            "| field1 | uint | 3:0 | 0 | Valid values: {1, 2, 3}.  |"
             in markdown_tables[0]
         )
         self.assertTrue(
-            "| field2 | bool | 4 | N/A | Valid values: {True}.  |" in markdown_tables[0]
+            "| field2 | bool | 4 | False | Valid values: {True}.  |"
+            in markdown_tables[0]
         )
 
     def test_config_to_markdown_with_bitdict(self):
@@ -82,10 +83,10 @@ class TestMarkdown(unittest.TestCase):
                 "selector": "field1",
             },
         }
-        markdown_tables = config_to_markdown(config)
-        self.assertEqual(len(markdown_tables), 1)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
+        self.assertEqual(len(markdown_tables), 2)
         self.assertTrue(
-            "| field2 | bitdict | 7:4 | N/A | See field2 definition table. |"
+            "| field2 | bitdict | 7:4 | N/A | See 'field2' definition table(s). |"
             in markdown_tables[0]
         )
 
@@ -97,13 +98,15 @@ class TestMarkdown(unittest.TestCase):
             "field1": {"start": 0, "width": 4, "type": "uint"},
             "field2": {"start": 4, "width": 1, "type": "bool"},
         }
-        markdown_tables = config_to_markdown(config, include_types=False)
+        markdown_tables = generate_markdown_tables(
+            bitdict_factory(config), include_types=False
+        )
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue(
             "| Name | Bitfield | Default | Description |" in markdown_tables[0]
         )
-        self.assertTrue("| field1 | 3:0 | N/A |  |" in markdown_tables[0])
-        self.assertTrue("| field2 | 4 | N/A |  |" in markdown_tables[0])
+        self.assertTrue("| field1 | 3:0 | 0 |  |" in markdown_tables[0])
+        self.assertTrue("| field2 | 4 | False |  |" in markdown_tables[0])
 
     def test_config_to_markdown_undefined_bits(self):
         """
@@ -113,11 +116,11 @@ class TestMarkdown(unittest.TestCase):
             "field1": {"start": 2, "width": 4, "type": "uint"},
             "field2": {"start": 7, "width": 1, "type": "bool"},
         }
-        markdown_tables = config_to_markdown(config)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue("| Undefined | N/A | 0-1 | N/A | N/A |" in markdown_tables[0])
-        self.assertTrue("| field1 | uint | 5:2 | N/A |  |" in markdown_tables[0])
-        self.assertTrue("| field2 | bool | 7 | N/A |  |" in markdown_tables[0])
+        self.assertTrue("| field1 | uint | 5:2 | 0 |  |" in markdown_tables[0])
+        self.assertTrue("| field2 | bool | 7 | False |  |" in markdown_tables[0])
 
     def test_config_to_markdown_undefined_bits_no_types(self):
         """
@@ -127,11 +130,13 @@ class TestMarkdown(unittest.TestCase):
             "field1": {"start": 2, "width": 4, "type": "uint"},
             "field2": {"start": 7, "width": 1, "type": "bool"},
         }
-        markdown_tables = config_to_markdown(config, include_types=False)
+        markdown_tables = generate_markdown_tables(
+            bitdict_factory(config), include_types=False
+        )
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue("| Undefined | 0-1 | N/A | N/A |" in markdown_tables[0])
-        self.assertTrue("| field1 | 5:2 | N/A |  |" in markdown_tables[0])
-        self.assertTrue("| field2 | 7 | N/A |  |" in markdown_tables[0])
+        self.assertTrue("| field1 | 5:2 | 0 |  |" in markdown_tables[0])
+        self.assertTrue("| field2 | 7 | False |  |" in markdown_tables[0])
 
     def test_config_to_markdown_valid_range(self):
         """
@@ -145,10 +150,10 @@ class TestMarkdown(unittest.TestCase):
                 "valid": {"range": [(0, 5), (7, 8)]},
             },
         }
-        markdown_tables = config_to_markdown(config)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
         self.assertEqual(len(markdown_tables), 1)
         self.assertTrue(
-            "| field1 | uint | 3:0 | N/A | Valid ranges: [(0, 5), (7, 8)].  |"
+            "| field1 | uint | 3:0 | 0 | Valid ranges: [(0, 5), (7, 8)].  |"
             in markdown_tables[0]
         )
 
@@ -235,10 +240,10 @@ class TestMarkdown(unittest.TestCase):
                 ],
             },
         }
-        markdown_tables = config_to_markdown(config)
-        self.assertEqual(len(markdown_tables), 1)
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
+        self.assertEqual(len(markdown_tables), 7)
         self.assertTrue("| Selector1 | bool | 0 | False |  |" in markdown_tables[0])
         self.assertTrue(
-            "| BitDict1 | bitdict | 3:1 | N/A | See BitDict1 definition table. |"
+            "| BitDict1 | bitdict | 3:1 | N/A | See 'BitDict1' definition table(s). |"
             in markdown_tables[0]
         )
