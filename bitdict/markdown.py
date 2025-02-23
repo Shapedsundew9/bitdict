@@ -55,15 +55,13 @@ def _get_description(prop_config: dict) -> str:
     return description
 
 
-def _format_row(  # pylint: disable=too-many-arguments
-    name: str,
-    prop_config: dict,
-    bitfield: str,
-    default: str,
-    description: str,
-    include_types: bool,
-) -> str:
+def _format_row(name: str, prop_config: dict, **kwargs) -> str:
     """Formats a standard data row for the table."""
+    bitfield = kwargs.get("bitfield", "N/A")
+    default = kwargs.get("default", "N/A")
+    description = kwargs.get("description", "")
+    include_types = kwargs.get("include_types", True)
+
     if include_types:
         return f"| {name} | {prop_config['type']} | {bitfield} | {default} | {description} |"
     return f"| {name} | {bitfield} | {default} | {description} |"
@@ -116,7 +114,12 @@ def config_to_markdown(  # pylint: disable=too-many-locals
             description = f"See {name} definition table."
 
         row = _format_row(
-            name, prop_config, bitfield, default, description, include_types
+            name,
+            prop_config,
+            bitfield=bitfield,
+            default=default,
+            description=description,
+            include_types=include_types,
         )
         rows.append(row)
         current_bit = end + 1
