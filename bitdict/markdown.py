@@ -67,9 +67,41 @@ def _format_row(name: str, prop_config: dict, **kwargs) -> str:
     return f"| {name} | {bitfield} | {default} | {description} |"
 
 
-def config_to_markdown(  # pylint: disable=too-many-locals
-    config: dict, include_types: bool = True
-) -> list[str]:
+def _process_property(
+    name: str, prop_config: dict, current_bit: int, include_types: bool
+) -> tuple[list[str], int]:
+    """Processes a single property and returns the row and the updated current bit."""
+    rows = []
+    start = prop_config["start"]
+    width = prop_config["width"]
+    end = start + width - 1
+
+    if start > current_bit:
+        undefined_row = _format_undefined_row(current_bit, start, include_types)
+        rows.append(undefined_row)
+
+    bitfield = f"{end}:{start}" if width > 1 else f"{start}"
+    default = prop_config.get("default", "N/A")
+    description = _get_description(prop_config)
+
+    if prop_config["type"] == "bitdict":
+        default = "N/A"
+        description = f"See {name} definition table."
+
+    row = _format_row(
+        name,
+        prop_config,
+        bitfield=bitfield,
+        default=default,
+        description=description,
+        include_types=include_types,
+    )
+    rows.append(row)
+    current_bit = end + 1
+    return rows, current_bit
+
+
+def config_to_markdown(config: dict, include_types: bool = True) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
 
@@ -95,34 +127,10 @@ def config_to_markdown(  # pylint: disable=too-many-locals
     sorted_properties = sorted(config.items(), key=lambda item: item[1]["start"])
 
     for name, prop_config in sorted_properties:
-        start = prop_config["start"]
-        width = prop_config["width"]
-        end = start + width - 1
-
-        # Handle undefined bits
-        if start > current_bit:
-            undefined_row = _format_undefined_row(current_bit, start, include_types)
-            rows.append(undefined_row)
-
-        bitfield = f"{end}:{start}" if width > 1 else f"{start}"
-        default = prop_config.get("default", "N/A")
-
-        description = _get_description(prop_config)
-
-        if prop_config["type"] == "bitdict":
-            default = "N/A"
-            description = f"See {name} definition table."
-
-        row = _format_row(
-            name,
-            prop_config,
-            bitfield=bitfield,
-            default=default,
-            description=description,
-            include_types=include_types,
+        new_rows, current_bit = _process_property(
+            name, prop_config, current_bit, include_types
         )
-        rows.append(row)
-        current_bit = end + 1
+        rows.extend(new_rows)
 
     table = table_header + "\n".join(rows)
     markdown_tables.append(table)
