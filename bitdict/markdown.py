@@ -101,6 +101,42 @@ def _process_property(
     return rows, current_bit
 
 
+def _generate_table_header(include_types: bool, title: str) -> str:
+    """Generates the table header based on whether types should be included."""
+    header = f"## {title}\n\n"
+    header += (
+        "| Name | Type | Bitfield | Default | Description |\n"
+        if include_types
+        else "| Name | Bitfield | Default | Description |\n"
+    )
+    header += "|---|:-:|:-:|:-:|---|\n" if include_types else "|---|:-:|:-:|---|\n"
+    return header
+
+
+def _generate_table_rows(config: dict, include_types: bool) -> list[str]:
+    """Generates the table rows from the configuration dictionary."""
+    rows = []
+    current_bit = 0
+    sorted_properties = sorted(config.items(), key=lambda item: item[1]["start"])
+
+    for name, prop_config in sorted_properties:
+        new_rows, current_bit = _process_property(
+            name, prop_config, current_bit, include_types
+        )
+        rows.extend(new_rows)
+
+    return rows
+
+
+def _process_subtypes(subtypes: dict, include_types: bool) -> list[str]:
+    """Processes nested bitdicts and generates their markdown tables."""
+    markdown_tables = []
+    for subtypes_list in subtypes.values():
+        for subtype in subtypes_list:
+            markdown_tables.extend(generate_markdown_tables(subtype, include_types))
+    return markdown_tables
+
+
 def generate_markdown_tables(bitdict_t: type, include_types: bool = True) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
@@ -113,33 +149,11 @@ def generate_markdown_tables(bitdict_t: type, include_types: bool = True) -> lis
         A list of formatted markdown strings representing the bitdict configuration in table format.
     """
     _config = bitdict_t.get_config()
-    markdown_tables = []
-    table_header: str = f"## {bitdict_t.title}\n\n"
-    table_header += (
-        "| Name | Type | Bitfield | Default | Description |\n"
-        if include_types
-        else "| Name | Bitfield | Default | Description |\n"
-    )
-    table_header += (
-        "|---|:-:|:-:|:-:|---|\n" if include_types else "|---|:-:|:-:|---|\n"
-    )
+    table_header = _generate_table_header(include_types, bitdict_t.title)
+    table_rows = _generate_table_rows(_config, include_types)
+    table = table_header + "\n".join(table_rows)
 
-    rows = []
-    current_bit = 0
-    sorted_properties = sorted(_config.items(), key=lambda item: item[1]["start"])
-
-    for name, prop_config in sorted_properties:
-        new_rows, current_bit = _process_property(
-            name, prop_config, current_bit, include_types
-        )
-        rows.extend(new_rows)
-
-    table = table_header + "\n".join(rows)
-    markdown_tables.append(table)
-
-    # Recursively process nested bitdicts
-    for subtypes in bitdict_t.subtypes.values():
-        for subtype in subtypes:
-            markdown_tables.extend(generate_markdown_tables(subtype, include_types))
+    markdown_tables = [table]
+    markdown_tables.extend(_process_subtypes(bitdict_t.subtypes, include_types))
 
     return markdown_tables
