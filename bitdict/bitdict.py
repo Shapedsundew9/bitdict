@@ -323,42 +323,57 @@ def _validate_valid_key(prop_name: str, prop_config: dict[str, Any]) -> None:
             f"'valid' dictionary must contain 'value' or 'range' for property {prop_name}"
         )
 
-    if "value" in valid_config:
-        if not isinstance(valid_config["value"], set):
+    _validate_valid_value(prop_name, prop_config, valid_config)
+    _validate_valid_range(prop_name, prop_config, valid_config)
+
+
+def _validate_valid_value(
+    prop_name: str, prop_config: dict[str, Any], valid_config: dict[str, Any]
+) -> None:
+    """Validates the 'value' key within the 'valid' configuration."""
+    if "value" not in valid_config:
+        return
+
+    if not isinstance(valid_config["value"], set):
+        raise ValueError(
+            f"'value' in 'valid' dictionary must be a set for property {prop_name}"
+        )
+    if not valid_config["value"]:
+        raise ValueError(
+            f"'value' set in 'valid' dictionary cannot be empty for property {prop_name}"
+        )
+    for val in valid_config["value"]:
+        if not isinstance(val, (int, bool)):
             raise ValueError(
-                f"'value' in 'valid' dictionary must be a set for property {prop_name}"
+                f"Invalid value type in 'valid' set for property {prop_name}: {val}"
             )
-        if not valid_config["value"]:
+        if not _is_value_in_range(val, prop_config):
+            raise ValueError(f"Value {val} out of range for property {prop_name}")
+
+
+def _validate_valid_range(
+    prop_name: str, prop_config: dict[str, Any], valid_config: dict[str, Any]
+) -> None:
+    """Validates the 'range' key within the 'valid' configuration."""
+    if "range" not in valid_config:
+        return
+
+    if not isinstance(valid_config["range"], list):
+        raise ValueError(
+            f"'range' in 'valid' dictionary must be a list for property {prop_name}"
+        )
+    if not valid_config["range"]:
+        raise ValueError(
+            f"'range' list in 'valid' dictionary cannot be empty for property {prop_name}"
+        )
+    for r in valid_config["range"]:
+        if not isinstance(r, tuple) or not 1 <= len(r) <= 3:
             raise ValueError(
-                f"'value' set in 'valid' dictionary cannot be empty for property {prop_name}"
+                f"Invalid range tuple in 'valid' list for property {prop_name}: {r}"
             )
-        for val in valid_config["value"]:
-            if not isinstance(val, (int, bool)):
-                raise ValueError(
-                    f"Invalid value type in 'valid' set for property {prop_name}: {val}"
-                )
+        for val in range(*r):
             if not _is_value_in_range(val, prop_config):
                 raise ValueError(f"Value {val} out of range for property {prop_name}")
-
-    if "range" in valid_config:
-        if not isinstance(valid_config["range"], list):
-            raise ValueError(
-                f"'range' in 'valid' dictionary must be a list for property {prop_name}"
-            )
-        if not valid_config["range"]:
-            raise ValueError(
-                f"'range' list in 'valid' dictionary cannot be empty for property {prop_name}"
-            )
-        for r in valid_config["range"]:
-            if not isinstance(r, tuple) or not 1 <= len(r) <= 3:
-                raise ValueError(
-                    f"Invalid range tuple in 'valid' list for property {prop_name}: {r}"
-                )
-            for val in range(*r):
-                if not _is_value_in_range(val, prop_config):
-                    raise ValueError(
-                        f"Value {val} out of range for property {prop_name}"
-                    )
 
 
 def _is_valid_value(value: int | bool, prop_config: dict[str, Any]) -> bool:

@@ -31,13 +31,52 @@ A list of formatted markdown strings representing the bitdict configuration in t
 """
 
 
-def config_to_markdown(config: dict, include_types: bool = True) -> list[str]:
+def _format_undefined_row(current_bit: int, start: int, include_types: bool) -> str:
+    """Formats a row for undefined bits in the table."""
+    undefined_name = "Undefined"
+    undefined_bitfield = (
+        f"{current_bit}-{start - 1}" if start - current_bit > 1 else f"{current_bit}"
+    )
+    if include_types:
+        return f"| {undefined_name} | N/A | {undefined_bitfield} | N/A | N/A |"
+    return f"| {undefined_name} | {undefined_bitfield} | N/A | N/A |"
+
+
+def _get_description(prop_config: dict) -> str:
+    """Extracts and formats the description from the property configuration."""
+    description = ""
+    if "valid" in prop_config:
+        valid_values = prop_config["valid"].get("value")
+        valid_range = prop_config["valid"].get("range")
+        if valid_values:
+            description += f"Valid values: {valid_values}. "
+        if valid_range:
+            description += f"Valid ranges: {valid_range}. "
+    return description
+
+
+def _format_row(  # pylint: disable=too-many-arguments
+    name: str,
+    prop_config: dict,
+    bitfield: str,
+    default: str,
+    description: str,
+    include_types: bool,
+) -> str:
+    """Formats a standard data row for the table."""
+    if include_types:
+        return f"| {name} | {prop_config['type']} | {bitfield} | {default} | {description} |"
+    return f"| {name} | {bitfield} | {default} | {description} |"
+
+
+def config_to_markdown(  # pylint: disable=too-many-locals
+    config: dict, include_types: bool = True
+) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
 
     Args:
         config: The bitdict configuration dictionary that needs to be converted.
-        headers: An optional list of headers for each markdown table.
         include_types: A boolean to indicate if data types should be included in the output.
 
     Returns:
@@ -64,39 +103,21 @@ def config_to_markdown(config: dict, include_types: bool = True) -> list[str]:
 
         # Handle undefined bits
         if start > current_bit:
-            undefined_name = "Undefined"
-            undefined_bitfield = (
-                f"{current_bit}-{start - 1}"
-                if start - current_bit > 1
-                else f"{current_bit}"
-            )
-            undefined_row = (
-                f"| {undefined_name} | N/A | {undefined_bitfield} | N/A | N/A |"
-                if include_types
-                else f"| {undefined_name} | {undefined_bitfield} | N/A | N/A |"
-            )
+            undefined_row = _format_undefined_row(current_bit, start, include_types)
             rows.append(undefined_row)
 
         bitfield = f"{end}:{start}" if width > 1 else f"{start}"
         default = prop_config.get("default", "N/A")
 
-        description = ""
-        if "valid" in prop_config:
-            valid_values = prop_config["valid"].get("value")
-            valid_range = prop_config["valid"].get("range")
-            if valid_values:
-                description += f"Valid values: {valid_values}. "
-            if valid_range:
-                description += f"Valid ranges: {valid_range}. "
+        description = _get_description(prop_config)
 
         if prop_config["type"] == "bitdict":
             default = "N/A"
             description = f"See {name} definition table."
 
-        if include_types:
-            row = f"| {name} | {prop_config['type']} | {bitfield} | {default} | {description} |"
-        else:
-            row = f"| {name} | {bitfield} | {default} | {description} |"
+        row = _format_row(
+            name, prop_config, bitfield, default, description, include_types
+        )
         rows.append(row)
         current_bit = end + 1
 

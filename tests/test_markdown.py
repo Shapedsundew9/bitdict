@@ -119,6 +119,20 @@ class TestMarkdown(unittest.TestCase):
         self.assertTrue("| field1 | uint | 5:2 | N/A |  |" in markdown_tables[0])
         self.assertTrue("| field2 | bool | 7 | N/A |  |" in markdown_tables[0])
 
+    def test_config_to_markdown_undefined_bits_no_types(self):
+        """
+        Test config_to_markdown with undefined bits.
+        """
+        config = {
+            "field1": {"start": 2, "width": 4, "type": "uint"},
+            "field2": {"start": 7, "width": 1, "type": "bool"},
+        }
+        markdown_tables = config_to_markdown(config, include_types=False)
+        self.assertEqual(len(markdown_tables), 1)
+        self.assertTrue("| Undefined | 0-1 | N/A | N/A |" in markdown_tables[0])
+        self.assertTrue("| field1 | 5:2 | N/A |  |" in markdown_tables[0])
+        self.assertTrue("| field2 | 7 | N/A |  |" in markdown_tables[0])
+
     def test_config_to_markdown_valid_range(self):
         """
         Test config_to_markdown with valid range.

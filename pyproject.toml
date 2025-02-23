@@ -28,3 +28,6 @@ Documentation = "https://github.com/Shapedsundew9/bitdict/blob/main/README.md"
 Repository = "https://github.com/Shapedsundew9/bitdict"
 Issues = "https://github.com/Shapedsundew9/bitdict/issues"
 Changelog = "https://github.com/Shapedsundew9/bitdict/blob/main/CHANGELOG.md"
+
+[tool.pylint.format]
+max-module-lines = 2000
