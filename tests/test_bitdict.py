@@ -1920,3 +1920,11 @@ class TestBitDict(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             _ = bitdict_factory(config)
+
+    def test_factory_invalid_description_type(self):
+        """Test that bitdict_factory raises a ValueError when the description is not a string."""
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "description": 123},
+        }
+        with self.assertRaises(ValueError):
+            bitdict_factory(config)

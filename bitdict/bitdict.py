@@ -104,6 +104,13 @@ def _validate_basic_properties(prop_name: str, prop_config: dict[str, Any]) -> N
     _validate_start_and_width(prop_config)
     _validate_type(prop_config)
     _validate_valid_key(prop_name, prop_config)
+    _validate_description(prop_config)
+
+
+def _validate_description(prop_config: dict[str, Any]) -> None:
+    """Validates the description key in the property configuration."""
+    if "description" in prop_config and not isinstance(prop_config["description"], str):
+        raise ValueError("Description must be a string")
 
 
 def _validate_property_name(prop_name: str) -> None:
@@ -171,8 +178,17 @@ def _validate_default_values(prop_name: str, prop_config: dict[str, Any]) -> Non
         return
 
     if "default" not in prop_config:
+        assert not isinstance(
+            prop_config, MappingProxyType
+        ), "Defaults not defined but config already frozen."
         _set_missing_defaults(prop_config)
         return
+
+    if "description" not in prop_config:
+        assert not isinstance(
+            prop_config, MappingProxyType
+        ), "Defaults not defined but config already frozen."
+        prop_config["description"] = ""
 
     _validate_default_value_type(prop_name, prop_config)
 
@@ -181,14 +197,8 @@ def _set_missing_defaults(prop_config: dict[str, Any]) -> None:
     """Sets default values if they are missing in the property configuration."""
     prop_type = prop_config["type"]
     if prop_type == "bool":
-        assert not isinstance(
-            prop_config, MappingProxyType
-        ), "Defaults not defined but config already frozen."
         prop_config["default"] = False
     elif prop_type in ("uint", "int"):
-        assert not isinstance(
-            prop_config, MappingProxyType
-        ), "Defaults not defined but config already frozen."
         prop_config["default"] = 0
 
 
