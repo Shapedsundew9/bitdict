@@ -56,6 +56,10 @@ print(value)  # Output: 221
 # Create an instance from an integer
 bd2 = MyBitDict(value)
 print(bd2.to_json())  # Output: {'value': -5, 'mode': 2, 'enabled': True}
+
+# Create an instance from a dictionary
+bd3 = MyBitDict({'value': -3, 'mode': 1, 'enabled': False})
+print(bd3)  # Output: MyBitDict({'value': -3, 'mode': 1, 'enabled': False})
 ```
 
 ## Configuration
@@ -104,21 +108,25 @@ returns
 
 ### BitDict Class
 
-The BitDict class provides methods to interact with the bit-packed data structure. Here are some of the key methods:
+The BitDict class provides methods to interact with the bit-packed data structure. To aid typechecking the abstract base class `BitDictABC` that defines this interface can be imported:
 
-- `__getitem__(self, key: str) -> bool | int | BitDict`: Retrieves the value associated with the given key.
+- `__getitem__(self, key: str) -> bool | int | BitDictABC`: Retrieves the value associated with the given key.
 - `__setitem__(self, key: str, value: bool | int) -> None`: Sets the value of a property within the BitDict.
 - `__len__(self) -> int`: Returns the total width of the bit dictionary, representing the number of bits it can store.
 - `__contains__(self, key: str) -> bool`: Checks if a property exists within this BitDict or its selected nested BitDicts.
-- `__iter__(self) -> Generator[tuple[str, bool | BitDict | int], Any, None]`: Iterates over the BitDict, yielding (name, value) pairs for each non-reserved field.
+- `__iter__(self) -> Generator[tuple[str, bool | BitDictABC | int], Any, None]`: Iterates over the BitDict, yielding (name, value) pairs for each non-reserved field.
+- `assign_verification_function(Callable[[BitDictABC], bool]) -> None`: Assigns a user defined verification function to be called by verify.
 - `clear(self) -> None`: Clears the bit dictionary, setting all bits to 0.
+- `get_config(cls) -> MappingProxyType[str, Any]`: Returns the configuration settings for the BitDict class.
+- `inspect(self) -> dict`: Returns a dictionary of properties with invalid values.
 - `reset(self) -> None`: Resets the BitDict to its default values.
 - `set(self, value: int | dict[str, Any]) -> None`: Sets the value of the BitDict.
 - `update(self, data: dict[str, Any]) -> None`: Updates the BitDict with values from another dictionary.
-- `to_json(self) -> dict[str, Any]`: Converts the BitDict to a JSON-serializable dictionary.
 - `to_bytes(self) -> bytes`: Converts the bit dictionary to a byte string.
 - `to_int(self) -> int`: Returns the integer representation of the BitDict.
-- `get_config(cls) -> MappingProxyType[str, Any]`: Returns the configuration settings for the BitDict class.
+- `to_json(self) -> dict[str, Any]`: Converts the BitDict to a JSON-serializable dictionary.
+- `valid(self) -> bool`: Returns True if the BitDict has a valid value.
+- `verify(self) -> bool`: Executes the user defined verifcation function if assigned else returns True.
 
 ## Detailed Example
 

@@ -27,9 +27,10 @@ Usage:
 """
 
 from __future__ import annotations
-from typing import Any, Generator
+from typing import Any, Generator, Callable
 from types import MappingProxyType
 from copy import deepcopy
+from abc import ABC, abstractmethod
 
 
 def _calculate_total_width(cfg) -> int:
@@ -53,7 +54,7 @@ def _calculate_total_width(cfg) -> int:
 
 
 def _validate_property_config(
-    prop_config_top: dict[str, Any], subtypes: dict[str, list[type | None]]
+    prop_config_top: dict[str, Any], subtypes: dict[str, list[type[BitDictABC] | None]]
 ) -> None:
     """
     Recursively validates the property configuration.
@@ -238,7 +239,7 @@ def _validate_bitdict_properties(
     prop_name: str,
     prop_config: dict[str, Any],
     prop_config_top: dict[str, Any],
-    subtypes: dict[str, list[type | None]],
+    subtypes: dict[str, list[type[BitDictABC] | None]],
 ) -> None:
     """Validates the properties of a 'bitdict' type configuration.
 
@@ -436,9 +437,117 @@ def _check_overlapping(cfg) -> None:
             used_bits.add(i)
 
 
+class BitDictABC(ABC):
+    """Abstract base class for BitDict"""
+
+    _config: MappingProxyType[str, Any]
+    _total_width: int
+
+    @abstractmethod
+    def __init__(
+        self, value: int | bytes | bytearray | dict[str, Any] | None = None
+    ) -> None:
+        """Initializes a BitDict instance with a specified value."""
+
+    @abstractmethod
+    def __getitem__(self, key: str) -> bool | int | BitDictABC:
+        """Retrieves the value associated with the given key."""
+
+    @abstractmethod
+    def __setitem__(self, key: str, value: bool | int) -> None:
+        """Sets the value of a property within the BitDict."""
+
+    @abstractmethod
+    def __len__(self) -> int:
+        """Returns the total width of the bit dictionary."""
+
+    @abstractmethod
+    def __contains__(self, key: str) -> bool:
+        """Check if a property exists within this BitDict or its nested BitDict"""
+
+    @abstractmethod
+    def __iter__(
+        self,
+    ) -> Generator[tuple[str, bool | int | BitDictABC], Any, None]:
+        """BitDict iterator to traverse properties in LSB to MSB order"""
+
+    @abstractmethod
+    def __repr__(self) -> str:
+        """Returns a string representation of the BitDict"""
+
+    @abstractmethod
+    def __str__(self) -> str:
+        """Returns a string representation of the BitDict"""
+
+    @abstractmethod
+    def _get_value(self) -> int:
+        """Returns the value of the BitDict"""
+
+    @abstractmethod
+    def _set_parent(self, parent: BitDictABC, key: str) -> None:
+        """Sets the parent BitDict and key for this BitDict"""
+
+    @abstractmethod
+    def _set_value(self, value: int) -> None:
+        """Sets the value of the BitDict"""
+
+    @classmethod
+    @abstractmethod
+    def assign_verification_function(
+        cls, verification_function: Callable[[BitDictABC], bool]
+    ) -> None:
+        """Assigns a verification function to the BitDict"""
+
+    @abstractmethod
+    def clear(self) -> None:
+        """Clears all bit fields to their default values."""
+
+    @classmethod
+    @abstractmethod
+    def get_config(cls) -> MappingProxyType[str, Any]:
+        """Returns the configuration dictionary for the BitDict."""
+
+    @abstractmethod
+    def inspect(self) -> dict[str, dict[str, bool | int | dict]]:
+        """Inspects the current state of the BitDict and returns a dictionary."""
+
+    @abstractmethod
+    def reset(self) -> None:
+        """Resets all bit fields to their default values."""
+
+    @abstractmethod
+    def set(self, value: int | dict[str, Any]) -> None:
+        """Sets the BitDict to the provided integer value
+        or a dictionary for multi-field updates."""
+
+    @abstractmethod
+    def update(self, data: dict[str, Any]) -> None:
+        """Updates the BitDict with the provided data."""
+
+    @abstractmethod
+    def to_bytes(self) -> bytes:
+        """Converts the BitDict to a byte representation."""
+
+    @abstractmethod
+    def to_int(self) -> int:
+        """Converts the BitDict to an integer representation."""
+
+    @abstractmethod
+    def to_json(self) -> dict[str, Any]:
+        """Converts the BitDict to a JSON-compatible dictionary."""
+
+    @abstractmethod
+    def valid(self) -> bool:
+        """Checks if the bit dictionary is valid."""
+
+    @abstractmethod
+    def verify(self) -> bool:
+        """Verifies the integrity of the bit dictionary."""
+
+
 def bitdict_factory(  # pylint: disable=too-many-statements
     config: dict[str, Any], name: str = "BitDict", title: str = "BitDict"
-) -> type:
+) -> type[BitDictABC]:
     """
     Factory function to create BitDict classes based on a configuration.
 
@@ -510,14 +619,14 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         raise ValueError("Invalid class name")
 
     # Subtype classes are stored in a dictionary for recursive creation.
-    subtype_lists: dict[str, list[type | None]] = {}
+    subtype_lists: dict[str, list[type[BitDictABC] | None]] = {}
     _title: str = title
 
     _validate_property_config(config, subtype_lists)  # Initial validation of top level.
     _check_overlapping(config)
     total_width = _calculate_total_width(config)
 
-    class BitDict:
+    class BitDict(BitDictABC):
         """
         A dynamic bit-field dictionary for structured data manipulation.
 
@@ -559,10 +668,13 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         """
 
         _config: MappingProxyType[str, Any] = MappingProxyType(deepcopy(config))
-        subtypes: dict[str, list[type | None]] = subtype_lists
+        subtypes: dict[str, list[type[BitDictABC] | None]] = subtype_lists
         _total_width: int = total_width
         title: str = _title
         __name__: str = name
+        verification_function: Callable[[BitDict], bool] = (  # pylint: disable=E0602
+            staticmethod(lambda _: True)
+        )
 
         def __init__(
             self, value: int | bytes | bytearray | dict[str, Any] | None = None
@@ -597,13 +709,13 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             """
             self._value = 0
             # Instances of subbitdicts
-            self._subbitdicts: dict[str, list[BitDict | None]] = {}
+            self._subbitdicts: dict[str, list[BitDictABC | None]] = {}
 
             # Identification of this BitDict in a parent BitDict
             # These are set by _parent_config() when this BitDict is a sub-bitdict.
             # They are used in _update_parent() to update the parent BitDict
             # when this BitDict changes.
-            self._parent: BitDict | None = None
+            self._parent: BitDictABC | None = None
             self._parent_key: str | None = None
 
             # Set to defaults
@@ -635,7 +747,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                     "Invalid initialization type: must be None, int, bytes, bytearray, or dict"
                 )
 
-        def __getitem__(self, key: str) -> bool | int | BitDict:
+        def __getitem__(self, key: str) -> bool | int | BitDictABC:
             """
             Retrieves the value associated with the given key.
             The key corresponds to a property defined in the BitDict's configuration.
@@ -651,7 +763,6 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 Can be a bool, int, or BitDict.
             Raises:
                 KeyError: If the key is not a valid property in the configuration.
-                ValueError: If attempting to read a 'reserved' property.
                 AssertionError: If the selector value for a 'bitdict' type is not an integer,
                         or if an unknown property type is encountered.
             """
@@ -679,9 +790,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 )
 
             if prop_config["type"] == "bitdict":
-                selector_value: bool | int | BitDict = self[prop_config["selector"]]
+                selector_value: bool | int | BitDictABC = self[prop_config["selector"]]
                 assert isinstance(selector_value, int), "Selector must be an integer"
-                bd: BitDict = self._get_subbitdict(key, selector_value)
+                bd: BitDictABC = self._get_subbitdict(key, selector_value)
                 return bd
 
             assert False, f"Unknown property type: {prop_config['type']}"
@@ -737,7 +848,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                     assert isinstance(
                         selector_value, int
                     ), "Selector must be an integer"
-                    bd: BitDict = self._get_subbitdict(key, selector_value)
+                    bd: BitDictABC = self._get_subbitdict(key, selector_value)
                     bd.set(value)
                     value = bd.to_int()
                 case _:
@@ -791,14 +902,14 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             if not retval:
                 for k, bd in self._config.items():
                     if bd["type"] == "bitdict":
-                        bdi: bool | int | BitDict = self[k]
+                        bdi: bool | int | BitDictABC = self[k]
                         assert not isinstance(bdi, int), "Expecting BitDict type."
                         retval = retval or key in bdi
                         if retval:
                             break
             return retval
 
-        def __iter__(self) -> Generator[tuple[str, bool | BitDict | int], Any, None]:
+        def __iter__(self) -> Generator[tuple[str, bool | BitDictABC | int], Any, None]:
             """Iterates over the BitDict, yielding (name, value) pairs for each
             non-reserved field.
             Yields:
@@ -835,7 +946,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
 
             return str(self.to_json())
 
-        def _get_subbitdict(self, key: str, selector_value: int) -> BitDict:
+        def _get_subbitdict(self, key: str, selector_value: int) -> BitDictABC:
             """Retrieves a sub-BitDict associated with a given key and selector value.
             If the sub-BitDict does not already exist, it is created, initialized,
             and stored for future access.
@@ -859,23 +970,27 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             if key not in self._subbitdicts:
                 width = self._config[prop_config["selector"]]["width"]
                 self._subbitdicts[key] = [None] * 2**width
-            sdk: list[BitDict | None] = self._subbitdicts[key]
+            sdk: list[BitDictABC | None] = self._subbitdicts[key]
             if sdk[selector_value] is None:
                 if selector_value >= len(self.subtypes[key]):
                     raise IndexError(
                         "Subtype class not created for selector"
                         f" {prop_config['selector']} at index {selector_value}"
                     )
-                bdtype: type[BitDict] | None = self.subtypes[key][selector_value]
+                bdtype: type[BitDictABC] | None = self.subtypes[key][selector_value]
                 assert bdtype is not None, "Subtype class not created!"
                 nbd = bdtype()
                 nbd._set_parent(self, key)  # pylint: disable=protected-access
                 sdk[selector_value] = nbd
-            retval: BitDict | None = sdk[selector_value]
+            retval: BitDictABC | None = sdk[selector_value]
             assert retval is not None, "Subtype class not created!"
             return retval
 
-        def _set_parent(self, parent: BitDict, key: str) -> None:
+        def _get_value(self) -> int:
+            """Returns the integer value representing the BitDict."""
+            return self._value
+
+        def _set_parent(self, parent: BitDictABC, key: str) -> None:
             """Sets the parent BitDict and the key associated with this BitDict in the parent.
             Args:
                 parent: The parent BitDict.
@@ -884,6 +999,15 @@ def bitdict_factory(  # pylint: disable=too-many-statements
 
             self._parent = parent
             self._parent_key = key
+
+        def _set_value(self, value: int) -> None:
+            """Sets the integer value representing the BitDict.
+            This method is used internally to set the BitDict's value
+            without triggering updates to the parent BitDict.
+            Args:
+                value: The integer value to set.
+            """
+            self._value = value
 
         def _update_parent(self) -> None:
             """Updates the parent BitField with the current value of this BitField.
@@ -902,13 +1026,69 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             ]
             mask = (1 << pc["width"]) - 1
             start = pc["start"]
-            self._parent._value &= ~(mask << start)
-            self._parent._value |= (self.to_int() & mask) << start
+            _value = self._parent._get_value()  # pylint: disable=protected-access
+            _value &= ~(mask << start)
+            _value |= (self.to_int() & mask) << start
+            self._parent._set_value(_value)  # pylint: disable=protected-access
+
+        @classmethod
+        def assign_verification_function(
+            cls, verification_function: Callable[[BitDictABC], bool]
+        ) -> None:
+            """Assigns a verification function to the BitDict.
+            The verification function is called by the `verify()` method to check the
+            validity of the BitDict's properties.
+            Args:
+                verification_function: A function that takes a BitDict instance as input
+                    and returns a boolean indicating whether the BitDict's properties are valid.
+            """
+            cls.verification_function = verification_function
 
         def clear(self) -> None:
             """Clears the bit dictionary, setting all bits to 0."""
 
             self.set(0)
+
+        @classmethod
+        def get_config(cls) -> MappingProxyType[str, Any]:
+            """Returns the configuration settings for the BitDict class.
+            The configuration is stored in a MappingProxyType, which provides
+            a read-only view of the underlying dictionary. This prevents
+            accidental modification of the configuration after the class
+            has been initialized.
+            Returns:
+                MappingProxyType[str, Any]: A read-only mapping containing the
+                configuration settings.
+            """
+
+            return cls._config
+
+        def inspect(self) -> dict[str, dict[str, bool | int | dict]]:
+            """Inspects the BitDict and returns a dictionary of properties with invalid values."""
+            invalid_props = {}
+            for prop_name, prop_config in self._config.items():
+                if prop_config["type"] == "bitdict":
+                    selector_value = self[prop_config["selector"]]
+                    assert isinstance(
+                        selector_value, int
+                    ), "Selector must be an integer"
+                    if not _is_valid_value(
+                        selector_value, self._config[prop_config["selector"]]
+                    ):
+                        invalid_props[prop_config["selector"]] = selector_value
+                    else:
+                        sub_bitdict = self._get_subbitdict(prop_name, selector_value)
+                        sub_invalid_props = sub_bitdict.inspect()
+                        if sub_invalid_props:
+                            invalid_props[prop_name] = sub_invalid_props
+                else:
+                    value = self[prop_name]
+                    assert isinstance(
+                        value, (int, bool)
+                    ), "Value must be an integer or boolean"
+                    if not _is_valid_value(value, prop_config):
+                        invalid_props[prop_name] = self[prop_name]
+            return invalid_props
 
         def reset(self) -> None:
             """Resets the BitDict to its default values.
@@ -997,28 +1177,6 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             for key, value in data.items():
                 self[key] = value  # Use __setitem__ for type/range checking
 
-        def to_json(self) -> dict[str, Any]:
-            """
-            Converts the BitDict to a JSON-serializable dictionary.
-            Iterates through the BitDict in reverse order, creating a dictionary
-            where keys are the names of the bitfields and values are their
-            corresponding values. If a value is a BitDict itself, its `to_json`
-            method is called recursively to convert it to a JSON-serializable
-            dictionary as well.
-            Returns:
-                dict[str, Any]: A dictionary representation of the BitDict suitable
-                for JSON serialization.
-            """
-
-            result = {}
-            for name, _ in list(self)[::-1]:  # Use the iterator
-                result[name] = self[name]
-                if hasattr(result[name], "to_json"):
-                    result[name] = result[
-                        name
-                    ].to_json()  # Recurse for nested bitdicts.
-            return result
-
         def to_bytes(self) -> bytes:
             """Convert the bit dictionary to a byte string.
             The resulting byte string represents the underlying integer value
@@ -1042,6 +1200,28 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             """
 
             return self._value
+
+        def to_json(self) -> dict[str, Any]:
+            """
+            Converts the BitDict to a JSON-serializable dictionary.
+            Iterates through the BitDict in reverse order, creating a dictionary
+            where keys are the names of the bitfields and values are their
+            corresponding values. If a value is a BitDict itself, its `to_json`
+            method is called recursively to convert it to a JSON-serializable
+            dictionary as well.
+            Returns:
+                dict[str, Any]: A dictionary representation of the BitDict suitable
+                for JSON serialization.
+            """
+
+            result = {}
+            for name, _ in list(self)[::-1]:  # Use the iterator
+                result[name] = self[name]
+                if hasattr(result[name], "to_json"):
+                    result[name] = result[
+                        name
+                    ].to_json()  # Recurse for nested bitdicts.
+            return result
 
         def valid(self) -> bool:
             """Checks if all properties have valid values."""
@@ -1068,46 +1248,18 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                         return False
             return True
 
-        def inspect(self) -> dict[str, dict[str, bool | int | dict]]:
-            """Inspects the BitDict and returns a dictionary of properties with invalid values."""
-            invalid_props = {}
-            for prop_name, prop_config in self._config.items():
-                if prop_config["type"] == "bitdict":
-                    selector_value = self[prop_config["selector"]]
-                    assert isinstance(
-                        selector_value, int
-                    ), "Selector must be an integer"
-                    if not _is_valid_value(
-                        selector_value, self._config[prop_config["selector"]]
-                    ):
-                        invalid_props[prop_config["selector"]] = selector_value
-                    else:
-                        sub_bitdict = self._get_subbitdict(prop_name, selector_value)
-                        sub_invalid_props = sub_bitdict.inspect()
-                        if sub_invalid_props:
-                            invalid_props[prop_name] = sub_invalid_props
-                else:
-                    value = self[prop_name]
-                    assert isinstance(
-                        value, (int, bool)
-                    ), "Value must be an integer or boolean"
-                    if not _is_valid_value(value, prop_config):
-                        invalid_props[prop_name] = self[prop_name]
-            return invalid_props
-
-        @classmethod
-        def get_config(cls) -> MappingProxyType[str, Any]:
-            """Returns the configuration settings for the BitDict class.
-            The configuration is stored in a MappingProxyType, which provides
-            a read-only view of the underlying dictionary. This prevents
-            accidental modification of the configuration after the class
-            has been initialized.
+        def verify(self) -> bool:
+            """Verifies the BitDict against a verification function.
+            The verification function is a user-defined function that takes a BitDict
+            instance as input and returns a boolean value indicating whether the
+            BitDict is valid. This method calls the verification function with the
+            current BitDict instance and returns the result.
             Returns:
-                MappingProxyType[str, Any]: A read-only mapping containing the
-                configuration settings.
+                bool: True if the BitDict is valid according to the verification function,
+                False otherwise.
             """
 
-            return cls._config
+            return self.__class__.verification_function(self)
 
     # end class BitDict
 

@@ -10,7 +10,7 @@ import timeit
 import unittest
 from types import MappingProxyType
 
-from bitdict import bitdict_factory
+from bitdict import bitdict_factory, BitDictABC
 
 
 class TestBitDictFactory(unittest.TestCase):
@@ -504,8 +504,10 @@ class TestBitDict(unittest.TestCase):
         self.assertEqual(bd.to_int(), 0b10001110)  # Check against expected value.
         self.assertEqual(bd["Constant"], True)
         self.assertEqual(bd["Mode"], False)
-        self.assertEqual(bd["SubValue"]["PropA"], 2)
-        self.assertEqual(bd["SubValue"]["PropB"], -1)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+        self.assertEqual(sub_value["PropA"], 2)
+        self.assertEqual(sub_value["PropB"], -1)
 
         # Test with missing values (should use defaults)
         bd2 = self.my_bitdict({"Constant": True})
@@ -517,7 +519,7 @@ class TestBitDict(unittest.TestCase):
         Test that creating an instance of MyBitDict with an invalid type raises a TypeError.
         """
         with self.assertRaises(TypeError):
-            self.my_bitdict("string")
+            self.my_bitdict("string")  # type: ignore
 
     def test_get_set_bool(self):
         """Test that boolean values can be set and retrieved correctly,
@@ -529,7 +531,7 @@ class TestBitDict(unittest.TestCase):
         bd["Constant"] = False
         self.assertEqual(bd["Constant"], False)
         with self.assertRaises(TypeError):
-            bd["Constant"] = "Frank"  # Wrong type
+            bd["Constant"] = "Frank"  # type: ignore
 
     def test_get_set_uint(self):
         """Test getting and setting unsigned integer values in the BitDict.
@@ -539,13 +541,16 @@ class TestBitDict(unittest.TestCase):
         ValueError, and that assigning values of incorrect types raise a TypeError.
         """
         bd = self.my_bitdict()
-        bd["SubValue"]["PropA"] = 3
-        self.assertEqual(bd["SubValue"]["PropA"], 3)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+
+        sub_value["PropA"] = 3
+        self.assertEqual(sub_value["PropA"], 3)
         with self.assertRaises(ValueError):
-            bd["SubValue"]["PropA"] = 5  # Out of range
-        bd["SubValue"]["PropA"] = True  # Is an int type
+            sub_value["PropA"] = 5  # Out of range
+        sub_value["PropA"] = True  # Is an int type
         with self.assertRaises(TypeError):
-            bd["SubValue"]["PropA"] = "Harry"
+            sub_value["PropA"] = "Harry"  # type: ignore
 
     def test_get_set_int(self):
         """Test getting and setting integer values within the BitDict.
@@ -557,14 +562,17 @@ class TestBitDict(unittest.TestCase):
         raise a TypeError.
         """
         bd = self.my_bitdict()
-        bd["SubValue"]["PropB"] = -2
-        self.assertEqual(bd["SubValue"]["PropB"], -2)
-        bd["SubValue"]["PropB"] = 1
-        self.assertEqual(bd["SubValue"]["PropB"], 1)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+
+        sub_value["PropB"] = -2
+        self.assertEqual(sub_value["PropB"], -2)
+        sub_value["PropB"] = 1
+        self.assertEqual(sub_value["PropB"], 1)
         with self.assertRaises(ValueError):
-            bd["SubValue"]["PropB"] = -3  # Out of range
+            sub_value["PropB"] = -3  # Out of range
         with self.assertRaises(TypeError):
-            bd["SubValue"]["PropB"] = "string"
+            sub_value["PropB"] = "string"  # type: ignore
 
     def test_nested_bitdict(self):
         """Test nested BitDict functionality.
@@ -579,24 +587,30 @@ class TestBitDict(unittest.TestCase):
             - Assigning an integer value to the nested BitDict updates its properties accordingly.
         """
         bd = self.my_bitdict(0x8C)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+
         self.assertEqual(bd["Mode"], False)
-        self.assertEqual(bd["SubValue"]["PropA"], 0)
-        self.assertEqual(bd["SubValue"]["PropB"], -1)
+        self.assertEqual(sub_value["PropA"], 0)
+        self.assertEqual(sub_value["PropB"], -1)
 
         bd["Mode"] = True  # Resets Subvalue to bitdict[1] default
-        self.assertEqual(bd["SubValue"]["PropC"], 1)
-        self.assertEqual(bd["SubValue"]["PropD"], True)
-        self.assertEqual(bd["SubValue"].to_int(), 9)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+        self.assertEqual(sub_value["PropC"], 1)
+        self.assertEqual(sub_value["PropD"], True)
+        self.assertEqual(sub_value.to_int(), 9)
 
-        bd["SubValue"]["PropC"] = 5
-        self.assertEqual(bd["SubValue"]["PropC"], 5)
+        sub_value["PropC"] = 5
+        self.assertEqual(sub_value["PropC"], 5)
         nested = bd["SubValue"]
+        assert isinstance(nested, BitDictABC)
         self.assertEqual(nested["PropC"], 5)
         with self.assertRaises(TypeError):
-            bd["SubValue"] = "string"  # Try and set to incorrect type.
+            bd["SubValue"] = "string"  # type: ignore
         bd["SubValue"] = 3  # Value set
-        self.assertEqual(bd["SubValue"]["PropC"], 3)
-        self.assertEqual(bd["SubValue"]["PropD"], False)
+        self.assertEqual(sub_value["PropC"], 3)
+        self.assertEqual(sub_value["PropD"], False)
 
     def test_len(self):
         """Test the __len__ method of the BitDict class.
@@ -653,6 +667,7 @@ class TestBitDict(unittest.TestCase):
                 elif name == "Reserved":
                     self.assertEqual(value, reserved)
                 elif name == "SubValue":
+                    assert isinstance(value, BitDictABC)
                     if not mode_val:
                         self.assertEqual(value["PropA"], sub_prop_a)
                         self.assertEqual(value["PropB"], sub_prop_b)
@@ -666,7 +681,8 @@ class TestBitDict(unittest.TestCase):
         bd = self.my_bitdict(0x8C)
         self.assertEqual(
             repr(bd),
-            "MyBitDict({'Constant': True, 'Mode': False, 'Reserved': 0, 'SubValue': {'PropB': -1, 'PropA': 0}})",
+            "MyBitDict({'Constant': True, 'Mode': False, "
+            "'Reserved': 0, 'SubValue': {'PropB': -1, 'PropA': 0}})",
         )
 
     def test_str(self):
@@ -674,7 +690,8 @@ class TestBitDict(unittest.TestCase):
         bd = self.my_bitdict(0x8C)
         self.assertEqual(
             str(bd),
-            "{'Constant': True, 'Mode': False, 'Reserved': 0, 'SubValue': {'PropB': -1, 'PropA': 0}}",
+            "{'Constant': True, 'Mode': False, 'Reserved': 0,"
+            " 'SubValue': {'PropB': -1, 'PropA': 0}}",
         )
 
     def test_update(self):
@@ -687,11 +704,13 @@ class TestBitDict(unittest.TestCase):
         invalid keys.
         """
         bd = self.my_bitdict()
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
         bd.update({"Constant": True, "SubValue": {"PropA": 1}})
         self.assertEqual(bd["Constant"], True)
-        self.assertEqual(bd["SubValue"]["PropA"], 1)
+        self.assertEqual(sub_value["PropA"], 1)
         with self.assertRaises(TypeError):
-            bd.update("not a dict")
+            bd.update("not a dict")  # type: ignore
         with self.assertRaises(KeyError):
             bd.update({"InvalidKey": 1})
 
@@ -740,7 +759,7 @@ class TestBitDict(unittest.TestCase):
         self.assertEqual(retrieved_config, self.config)
         # Ensure it's read-only (check for immutability)
         with self.assertRaises(TypeError):
-            retrieved_config["Constant"] = "something else"
+            retrieved_config["Constant"] = "something else"  # type: ignore
 
     def test_large_bit_width(self):
         """Test that bitdict works with large bit widths.
@@ -790,12 +809,14 @@ class TestBitDict(unittest.TestCase):
         """
 
         bd = self.my_bitdict()
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
         with self.assertRaises(TypeError):
-            bd["Constant"] = "string"  # Invalid type for bool
+            bd["Constant"] = "string"  # type: ignore
         with self.assertRaises(ValueError):
-            bd["SubValue"]["PropA"] = -1  # Invalid value for uint
+            sub_value["PropA"] = -1  # Out of range for uint
         with self.assertRaises(ValueError):
-            bd["SubValue"]["PropB"] = 3  # Invalid value for int
+            sub_value["PropB"] = 3  # Invalid value for int
 
     def test_performance(self):
         """Test the performance of MyBitDict in terms of instance creation,
@@ -1261,17 +1282,25 @@ class TestBitDict(unittest.TestCase):
 
         # Set selector to False, check BitDict1.fieldA and BitDict2.fieldC
         bd["Selector"] = False
-        bd["BitDict1"]["fieldA"] = 1
-        bd["BitDict2"]["fieldC"] = 2
-        self.assertEqual(bd["BitDict1"]["fieldA"], 1)
-        self.assertEqual(bd["BitDict2"]["fieldC"], 2)
+        bitdict1 = bd["BitDict1"]
+        bitdict2 = bd["BitDict2"]
+        assert isinstance(bitdict1, BitDictABC)
+        assert isinstance(bitdict2, BitDictABC)
+        bitdict1["fieldA"] = 1
+        bitdict2["fieldC"] = 2
+        self.assertEqual(bitdict1["fieldA"], 1)
+        self.assertEqual(bitdict2["fieldC"], 2)
 
         # Set selector to True, check BitDict1.fieldB and BitDict2.fieldD
         bd["Selector"] = True
-        bd["BitDict1"]["fieldB"] = 3
-        bd["BitDict2"]["fieldD"] = 0
-        self.assertEqual(bd["BitDict1"]["fieldB"], 3)
-        self.assertEqual(bd["BitDict2"]["fieldD"], 0)
+        bitdict1 = bd["BitDict1"]
+        bitdict2 = bd["BitDict2"]
+        assert isinstance(bitdict1, BitDictABC)
+        assert isinstance(bitdict2, BitDictABC)
+        bitdict1["fieldB"] = 3
+        bitdict2["fieldD"] = 0
+        self.assertEqual(bitdict1["fieldB"], 3)
+        self.assertEqual(bitdict2["fieldD"], 0)
 
     def test_three_bitdicts_different_selectors(self):
         """Test case to verify the functionality of three BitDicts with different selectors.
@@ -1324,21 +1353,34 @@ class TestBitDict(unittest.TestCase):
         # Set selectors and check values
         bd["Selector1"] = False
         bd["Selector2"] = True
-        bd["BitDict1"]["fieldA"] = 1
-        bd["BitDict2"]["fieldD"] = 2
-        bd["BitDict3"]["fieldE"] = 3
-        self.assertEqual(bd["BitDict1"]["fieldA"], 1)
-        self.assertEqual(bd["BitDict2"]["fieldD"], 2)
-        self.assertEqual(bd["BitDict3"]["fieldE"], 3)
+        bitdict1 = bd["BitDict1"]
+        bitdict2 = bd["BitDict2"]
+        bitdict3 = bd["BitDict3"]
+        assert isinstance(bitdict1, BitDictABC)
+        assert isinstance(bitdict2, BitDictABC)
+        assert isinstance(bitdict3, BitDictABC)
+
+        bitdict1["fieldA"] = 1
+        bitdict2["fieldD"] = 2
+        bitdict3["fieldE"] = 3
+        self.assertEqual(bitdict1["fieldA"], 1)
+        self.assertEqual(bitdict2["fieldD"], 2)
+        self.assertEqual(bitdict3["fieldE"], 3)
 
         bd["Selector1"] = True
         bd["Selector2"] = False
-        bd["BitDict1"]["fieldB"] = 3
-        bd["BitDict2"]["fieldC"] = 1
-        bd["BitDict3"]["fieldF"] = 0
-        self.assertEqual(bd["BitDict1"]["fieldB"], 3)
-        self.assertEqual(bd["BitDict2"]["fieldC"], 1)
-        self.assertEqual(bd["BitDict3"]["fieldF"], 0)
+        bitdict1 = bd["BitDict1"]
+        bitdict2 = bd["BitDict2"]
+        bitdict3 = bd["BitDict3"]
+        assert isinstance(bitdict1, BitDictABC)
+        assert isinstance(bitdict2, BitDictABC)
+        assert isinstance(bitdict3, BitDictABC)
+        bitdict1["fieldB"] = 3
+        bitdict2["fieldC"] = 1
+        bitdict3["fieldF"] = 0
+        self.assertEqual(bitdict1["fieldB"], 3)
+        self.assertEqual(bitdict2["fieldC"], 1)
+        self.assertEqual(bitdict3["fieldF"], 0)
 
     def test_four_deep_nested_bitdicts(self):
         """
@@ -1510,16 +1552,31 @@ class TestBitDict(unittest.TestCase):
 
         # Set selectors and check values
         bd["Selector1"] = False
-        bd["BitDict1"]["Selector2"] = True
-        bd["BitDict1"]["BitDict2"]["Selector3"] = False
-        bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldC"] = 1
-        self.assertEqual(bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldC"], 1)
+        bitdict1 = bd["BitDict1"]
+        assert isinstance(bitdict1, BitDictABC)
+
+        bitdict1["Selector2"] = True
+        bitdict2 = bitdict1["BitDict2"]
+        assert isinstance(bitdict2, BitDictABC)
+
+        bitdict2["Selector3"] = False
+        bitdict3 = bitdict2["BitDict3"]
+        assert isinstance(bitdict3, BitDictABC)
+
+        bitdict3["fieldC"] = 1
+        self.assertEqual(bitdict3["fieldC"], 1)
 
         bd["Selector1"] = True
-        bd["BitDict1"]["Selector2"] = False
-        bd["BitDict1"]["BitDict2"]["Selector3"] = True
-        bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldF"] = 1
-        self.assertEqual(bd["BitDict1"]["BitDict2"]["BitDict3"]["fieldF"], 1)
+        bitdict1 = bd["BitDict1"]
+        assert isinstance(bitdict1, BitDictABC)
+        bitdict1["Selector2"] = False
+        bitdict2 = bitdict1["BitDict2"]
+        assert isinstance(bitdict2, BitDictABC)
+        bitdict2["Selector3"] = True
+        bitdict3 = bitdict2["BitDict3"]
+        assert isinstance(bitdict3, BitDictABC)
+        bitdict3["fieldF"] = 1
+        self.assertEqual(bitdict3["fieldF"], 1)
 
     def test_setitem_reserved_field(self):
         """Test that setting a reserved field raises an AssertionError."""
@@ -1604,7 +1661,8 @@ class TestBitDict(unittest.TestCase):
             bitdict_factory(config)
 
     def test_factory_invalid_valid_key_range_not_tuple(self):
-        """Test that bitdict_factory raises a ValueError when an element in 'range' is not a tuple."""
+        """Test that bitdict_factory raises a ValueError
+        when an element in 'range' is not a tuple."""
         config = {
             "field1": {
                 "start": 0,
@@ -1657,7 +1715,8 @@ class TestBitDict(unittest.TestCase):
         self.assertFalse(bd.valid())
 
     def test_factory_invalid_valid_key_value_type(self):
-        """Test that bitdict_factory raises a ValueError when a value in the 'value' set is not an int or bool."""
+        """Test that bitdict_factory raises a ValueError when a
+        value in the 'value' set is not an int or bool."""
         config = {
             "field1": {
                 "start": 0,
@@ -1670,7 +1729,8 @@ class TestBitDict(unittest.TestCase):
             bitdict_factory(config)
 
     def test_factory_invalid_valid_key_range_out_of_bounds_uint(self):
-        """Test that bitdict_factory raises a ValueError when a range in 'valid' contains a value out of bounds for a uint."""
+        """Test that bitdict_factory raises a ValueError when a range in
+        'valid' contains a value out of bounds for a uint."""
         config = {
             "field1": {
                 "start": 0,
@@ -1683,7 +1743,8 @@ class TestBitDict(unittest.TestCase):
             bitdict_factory(config)
 
     def test_factory_invalid_valid_key_range_out_of_bounds_int(self):
-        """Test that bitdict_factory raises a ValueError when a range in 'valid' contains a value out of bounds for an int."""
+        """Test that bitdict_factory raises a ValueError when a range in
+        'valid' contains a value out of bounds for an int."""
         config = {
             "field1": {
                 "start": 0,
@@ -1733,22 +1794,26 @@ class TestBitDict(unittest.TestCase):
 
         # Valid case
         bd["field1"] = False
-        bd["field2"]["nested_field1"] = 0
+        field2 = bd["field2"]
+        assert isinstance(field2, BitDictABC)
+        field2["nested_field1"] = 0
         self.assertTrue(bd.valid())
 
         # Invalid case
         bd["field1"] = False
-        bd["field2"]["nested_field1"] = 2
+        field2["nested_field1"] = 2
         self.assertFalse(bd.valid())
 
         # Valid case
         bd["field1"] = True
-        bd["field2"]["nested_field2"] = 2
+        field2 = bd["field2"]
+        assert isinstance(field2, BitDictABC)
+        field2["nested_field2"] = 2
         self.assertTrue(bd.valid())
 
         # Invalid case
         bd["field1"] = True
-        bd["field2"]["nested_field2"] = 1
+        field2["nested_field2"] = 1
         self.assertFalse(bd.valid())
 
     def test_factory_valid_config_invalid_selector_value(self):
@@ -1793,6 +1858,7 @@ class TestBitDict(unittest.TestCase):
             _ = bitdict_factory(config)
 
     def test_valid_bitdict_selector_value(self):
+        """Test the valid method when the selector value is invalid."""
         config = {
             "field1": {
                 "start": 0,
@@ -1813,7 +1879,7 @@ class TestBitDict(unittest.TestCase):
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
-        bd._value = 0x30  # pylint: disable=protected-access
+        bd._set_value(0x30)  # pylint: disable=protected-access
         self.assertFalse(bd.valid())
 
     def test_inspect_nested_bitdict(self):
@@ -1854,22 +1920,26 @@ class TestBitDict(unittest.TestCase):
 
         # Valid case
         bd["field1"] = False
-        bd["field2"]["nested_field1"] = 0
+        field2 = bd["field2"]
+        assert isinstance(field2, BitDictABC)
+        field2["nested_field1"] = 0
         self.assertEqual(bd.inspect(), {})
 
         # Invalid case
         bd["field1"] = False
-        bd["field2"]["nested_field1"] = 2
+        field2["nested_field1"] = 2
         self.assertEqual(bd.inspect(), {"field2": {"nested_field1": 2}})
 
         # Valid case
         bd["field1"] = True
-        bd["field2"]["nested_field2"] = 2
+        field2 = bd["field2"]
+        assert isinstance(field2, BitDictABC)
+        field2["nested_field2"] = 2
         self.assertEqual(bd.inspect(), {})
 
         # Invalid case
         bd["field1"] = True
-        bd["field2"]["nested_field2"] = 1
+        field2["nested_field2"] = 1
         self.assertEqual(bd.inspect(), {"field2": {"nested_field2": 1}})
 
     def test_inspect_bitdict_selector_value(self):
@@ -1894,7 +1964,7 @@ class TestBitDict(unittest.TestCase):
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
-        bd._value = 0x30  # pylint: disable=protected-access
+        bd._set_value(0x30)  # pylint: disable=protected-access
         self.assertEqual(bd.inspect(), {"field2": 3})
 
     def test__bitdict_config_with_default(self):
@@ -1941,3 +2011,29 @@ class TestBitDict(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             _ = bitdict_factory(config, "Invalid Name")
+
+    def test_verify_with_custom_function(self):
+        """Test the verify method with a custom verification function.
+
+        This test assigns a custom verification function to the BitDict instance
+        and checks if the verify method correctly calls this function and returns
+        the expected result.
+        """
+
+        def custom_verification_function(bd):
+            return bd["Constant"] and bd["Mode"]
+
+        bd = self.my_bitdict()
+        bd.assign_verification_function(custom_verification_function)
+
+        # Test with default values (should be False)
+        self.assertFalse(bd.verify())
+
+        # Set values to pass the verification function
+        bd["Constant"] = True
+        bd["Mode"] = True
+        self.assertTrue(bd.verify())
+
+        # Set values to fail the verification function
+        bd["Mode"] = False
+        self.assertFalse(bd.verify())
