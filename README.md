@@ -120,7 +120,7 @@ The BitDict class provides methods to interact with the bit-packed data structur
 - `get_config(cls) -> MappingProxyType[str, Any]`: Returns the configuration settings for the BitDict class.
 - `inspect(self) -> dict`: Returns a dictionary of properties with invalid values.
 - `reset(self) -> None`: Resets the BitDict to its default values.
-- `set(self, value: int | dict[str, Any]) -> None`: Sets the value of the BitDict.
+- `set(self, value: int | dict[str, Any], ignore_unknown: bool = True) -> None`: Sets the value of the BitDict.
 - `update(self, data: dict[str, Any]) -> None`: Updates the BitDict with values from another dictionary.
 - `to_bytes(self) -> bytes`: Converts the bit dictionary to a byte string.
 - `to_int(self) -> int`: Returns the integer representation of the BitDict.

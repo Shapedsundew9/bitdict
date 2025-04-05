@@ -445,7 +445,9 @@ class BitDictABC(ABC):
 
     @abstractmethod
     def __init__(
-        self, value: int | bytes | bytearray | dict[str, Any] | None = None
+        self,
+        value: int | bytes | bytearray | dict[str, Any] | None = None,
+        ignore_unknown: bool = True,
     ) -> None:
         """Initializes a BitDict instance with a specified value."""
 
@@ -516,7 +518,7 @@ class BitDictABC(ABC):
         """Resets all bit fields to their default values."""
 
     @abstractmethod
-    def set(self, value: int | dict[str, Any]) -> None:
+    def set(self, value: int | dict[str, Any], ignore_unknown: bool = True) -> None:
         """Sets the BitDict to the provided integer value
         or a dictionary for multi-field updates."""
 
@@ -677,7 +679,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         )
 
         def __init__(
-            self, value: int | bytes | bytearray | dict[str, Any] | None = None
+            self,
+            value: int | bytes | bytearray | dict[str, Any] | None = None,
+            ignore_unknown: bool = True,
         ) -> None:
             """Initializes a BitDict instance with a specified value.
             The initial value can be provided as an integer,
@@ -697,6 +701,10 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                       dictionary's key-value pairs.
                     - If `None`, the BitDict is initialized to its default
                       state. Defaults to None.
+
+                ignore_unknown (bool, optional): If set to True, unknown properties
+                    in the initialization dictionary will be ignored. If False
+                    an unknown property will raise a KeyError. Defaults to True.
 
                 TypeError: If `value` is not one of the supported types
                     (int, bytes, bytearray, dict, None).
@@ -741,7 +749,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 # Convert bytes to integer (big-endian)
                 self.set(int.from_bytes(value, "big"))
             elif isinstance(value, dict):
-                self.set(value)  # Use update to handle defaults and type checking
+                self.set(
+                    value, ignore_unknown
+                )  # Use update to handle defaults and type checking
             else:
                 raise TypeError(
                     "Invalid initialization type: must be None, int, bytes, bytearray, or dict"
@@ -1108,7 +1118,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 else:
                     self[prop_name] = prop_config["default"]
 
-        def set(self, value: int | dict[str, Any]) -> None:
+        def set(self, value: int | dict[str, Any], ignore_unknown: bool = True) -> None:
             """Sets the value of the BitDict.
             The value can be set in two ways:
             1.  As an integer: In this case, the integer value is assigned to the
@@ -1125,6 +1135,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             Args:
                 value: The value to set.  Can be an integer or a dictionary of
                 property values.
+                ignore_unknown: If True, unknown properties in the dictionary
+                will be ignored. If False, a KeyError will be raised for unknown
+                properties.
             Raises:
                 ValueError: If the integer value is outside the allowed range for
                 the configured bit width.
@@ -1133,11 +1146,28 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             """
 
             if isinstance(value, dict):
-                for prop_name, prop_config in self._config.items():
-                    if prop_name in value:
-                        self[prop_name] = value[prop_name]
-                    elif "default" in prop_config:
-                        self[prop_name] = prop_config["default"]
+                if ignore_unknown:
+                    # If ignoring unknown field names, set the fields that
+                    # are in the config and set the defaults for the rest.
+                    for prop_name, prop_config in self._config.items():
+                        if prop_name in value:
+                            self[prop_name] = value[prop_name]
+                        elif "default" in prop_config:
+                            self[prop_name] = prop_config["default"]
+                else:
+                    # If not ignoring unknown field names, set the fields
+                    # that are in the config and raise an error for the rest.
+                    # Set the fields not in the value to their default values.
+                    defaults = set(self._config.keys())
+                    for v_name in value:
+                        if v_name not in self._config:
+                            raise KeyError(f"Unknown property: {v_name}")
+                        self[v_name] = value[v_name]
+                        defaults.discard(v_name)
+                    for prop_name in defaults:
+                        prop_config = self._config[prop_name]
+                        if "default" in prop_config:
+                            self[prop_name] = prop_config["default"]
             else:
                 if value >= (1 << self._total_width):
                     raise ValueError(

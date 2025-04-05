@@ -2037,3 +2037,70 @@ class TestBitDict(unittest.TestCase):
         # Set values to fail the verification function
         bd["Mode"] = False
         self.assertFalse(bd.verify())
+
+    def test_set_with_integer(self):
+        """Test the set method with an integer value."""
+        bd = self.my_bitdict()
+        bd.set(0x8C)
+        self.assertEqual(bd.to_int(), 0x8C)
+
+        with self.assertRaises(ValueError):
+            bd.set(1 << 8)  # Value exceeds the maximum for 8 bits
+
+        with self.assertRaises(ValueError):
+            bd.set(-1)  # Negative value not allowed
+
+    def test_set_with_dict_ignore_unknown_true(self):
+        """Test the set method with a dictionary when ignore_unknown is True."""
+        bd = self.my_bitdict()
+        bd.set({"Constant": True, "Mode": False, "SubValue": {"PropA": 2, "PropB": -1}})
+        self.assertEqual(bd["Constant"], True)
+        self.assertEqual(bd["Mode"], False)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+        self.assertEqual(sub_value["PropA"], 2)
+        self.assertEqual(sub_value["PropB"], -1)
+
+        # Test with unknown keys (should be ignored)
+        bd.set({"UnknownKey": 123}, ignore_unknown=True)
+        self.assertNotIn("UnknownKey", bd)
+
+    def test_set_with_dict_ignore_unknown_false_raise(self):
+        """Test the set method with a dictionary when ignore_unknown is False."""
+        bd = self.my_bitdict()
+        bd.set({"Constant": True, "Mode": False, "SubValue": {"PropA": 2, "PropB": -1}})
+        self.assertEqual(bd["Constant"], True)
+        self.assertEqual(bd["Mode"], False)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+        self.assertEqual(sub_value["PropA"], 2)
+        self.assertEqual(sub_value["PropB"], -1)
+
+        # Test with unknown keys (should raise KeyError)
+        with self.assertRaises(KeyError):
+            bd.set({"UnknownKey": 123}, ignore_unknown=False)
+
+    def test_set_with_dict_ignore_unknown_false(self):
+        """Test the set method with a dictionary when ignore_unknown is False."""
+        bd = self.my_bitdict()
+        bd.set({"Constant": True, "Mode": False, "SubValue": {"PropA": 2, "PropB": -1}})
+        self.assertEqual(bd["Constant"], True)
+        self.assertEqual(bd["Mode"], False)
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+        self.assertEqual(sub_value["PropA"], 2)
+        self.assertEqual(sub_value["PropB"], -1)
+
+        # Test with unknown keys (should raise KeyError)
+        bd.set({"Constant": False}, ignore_unknown=False)
+
+    def test_set_with_defaults(self):
+        """Test the set method to ensure defaults are applied correctly."""
+        bd = self.my_bitdict()
+        bd.set({"Constant": True})
+        self.assertEqual(bd["Constant"], True)
+        self.assertEqual(bd["Mode"], False)  # Default value
+        sub_value = bd["SubValue"]
+        assert isinstance(sub_value, BitDictABC)
+        self.assertEqual(sub_value["PropA"], 0)  # Default value
+        self.assertEqual(sub_value["PropB"], -1)  # Default value
