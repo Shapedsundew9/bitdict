@@ -677,6 +677,12 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         verification_function: Callable[[BitDict], bool] = (  # pylint: disable=E0602
             staticmethod(lambda _: True)
         )
+        __slots__: tuple[str, ...] = (
+            "_value",
+            "_subbitdicts",
+            "_parent",
+            "_parent_key",
+        )
 
         def __init__(
             self,
