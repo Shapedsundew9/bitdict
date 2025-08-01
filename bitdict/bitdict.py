@@ -260,11 +260,8 @@ def bitdict_factory(  # pylint: disable=too-many-statements
     subtype_lists: dict[str, list[type[BitDictABC] | None]] = {}
     _title: str = title
 
-    _validate_property_config = validate_property_config
-    _check_overlapping = check_overlapping
-
-    _validate_property_config(config, subtype_lists)  # Initial validation of top level.
-    _check_overlapping(config)
+    validate_property_config(config, subtype_lists)  # Initial validation of top level.
+    check_overlapping(config)
     total_width = _calculate_total_width(config)
 
     class BitDict(BitDictABC):
