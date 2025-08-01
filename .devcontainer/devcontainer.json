@@ -1,0 +1,43 @@
+// For format details, see https://aka.ms/devcontainer.json. For config options, see the
+// README at: https://github.com/devcontainers/templates/tree/main/src/python
+{
+        "name": "Python 3.12 & PostgreSQL",
+        "dockerFile": "Dockerfile",
+        "workspaceFolder": "/workspace",
+    "customizations": {
+                "vscode": {
+                        "extensions": [
+                                "ms-python.python",
+                                "ms-python.black-formatter",
+                                "eamodio.gitlens",
+                                "ms-python.isort",
+                                "bierner.markdown-mermaid",
+                                "DavidAnson.vscode-markdownlint",
+                                "ms-python.pylint",
+                                "GitHub.vscode-pull-request-github"
+
+                        ],
+                        "settings": {
+                                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
+                                "python.terminal.activateEnvironment": true,
+                                "python.analysis.autoImportCompletions": true,
+                                "python.analysis.indexing": true,
+                                "[python]": {
+                                        "editor.defaultFormatter": "ms-python.black-formatter",
+                                        "editor.formatOnSave": true,
+                                        "editor.codeActionsOnSave": {
+                                                "source.organizeImports": "explicit"
+                                        }
+                                },
+                                "isort.args": [
+                                        "--profile",
+                                        "black"
+                                ]
+                        }
+                }
+        },
+        "containerEnv": {
+                // Environment variables to set in the container.
+        },
+          "postCreateCommand": "bash .devcontainer/post-create.sh"
+}
