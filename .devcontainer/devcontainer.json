@@ -39,5 +39,5 @@
         "containerEnv": {
                 // Environment variables to set in the container.
         },
-          "postCreateCommand": "bash .devcontainer/post-create.sh"
+          "postCreateCommand": "bash .devcontainer/postcreate.sh"
 }
