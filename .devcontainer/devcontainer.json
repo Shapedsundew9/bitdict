@@ -3,7 +3,7 @@
 {
         "name": "Python 3.12 & PostgreSQL",
         "dockerFile": "Dockerfile",
-        "workspaceFolder": "/workspace",
+        "workspaceFolder": "/workspaces",
     "customizations": {
                 "vscode": {
                         "extensions": [
