@@ -433,3 +433,4 @@ def check_overlapping(config: dict[str, Any]) -> None:
     This function maintains backward compatibility with the existing API.
     """
     OverlapValidator.check_overlapping(config)
+
