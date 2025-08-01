@@ -3,7 +3,7 @@
 {
         "name": "Python 3.12 & PostgreSQL",
         "dockerFile": "Dockerfile",
-        "workspaceFolder": "/workspaces",
+        "workspaceFolder": "/workspaces/bitdict",
     "customizations": {
                 "vscode": {
                         "extensions": [
