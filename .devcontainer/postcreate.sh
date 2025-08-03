@@ -8,12 +8,12 @@ echo "--- Running post-create script ---"
 
 # Activating the virtual environment
 echo "Creating virtual environment..."
-python3 -m venv /workspaces/.venv
+python3 -m venv /workspaces/bitdict/.venv
 
 # Install Python dependencies from requirements.txt
 echo "Installing requirements..."
-/workspaces/.venv/bin/pip install --upgrade pip
-/workspaces/.venv/bin/pip install pre-commit
+/workspaces/bitdict/.venv/bin/pip install --upgrade pip
+/workspaces/bitdict/.venv/bin/pip install pre-commit
 find . -name "requirements.txt" -exec /workspaces/.venv/bin/pip install -r {} \;
 
 # Done

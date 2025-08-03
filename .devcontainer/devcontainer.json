@@ -1,7 +1,7 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the
 // README at: https://github.com/devcontainers/templates/tree/main/src/python
 {
-        "name": "Python 3.12 & PostgreSQL",
+        "name": "Python 3.12",
         "dockerFile": "Dockerfile",
         "workspaceFolder": "/workspaces/bitdict",
     "customizations": {
@@ -15,7 +15,6 @@
                                 "DavidAnson.vscode-markdownlint",
                                 "ms-python.pylint",
                                 "GitHub.vscode-pull-request-github"
-
                         ],
                         "settings": {
                                 "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python",
@@ -28,11 +27,28 @@
                                         "editor.codeActionsOnSave": {
                                                 "source.organizeImports": "explicit"
                                         }
+                                }, 
+                                "[json]": {
+                                "editor.formatOnSave": true,
+                                "editor.defaultFormatter": "vscode.json-language-features"
+                                },
+                                "[jsonc]": {
+                                "editor.formatOnSave": true,
+                                "editor.defaultFormatter": "vscode.json-language-features"
                                 },
                                 "isort.args": [
                                         "--profile",
                                         "black"
-                                ]
+                                ],
+                                    "python.testing.unittestArgs": [
+                                        "-v",
+                                        "-s",
+                                        "./tests",
+                                        "-p",
+                                        "test_*.py"
+                                ],
+                                "python.testing.pytestEnabled": false,
+                                "python.testing.unittestEnabled": true
                         }
                 }
         },
