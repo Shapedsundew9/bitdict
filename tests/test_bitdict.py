@@ -52,7 +52,13 @@ class TestBitDictFactory(unittest.TestCase):
         }
         MyBitDict = bitdict_factory(config)
         self.assertTrue(issubclass(MyBitDict, object))  # Check it's a class
-        self.assertEqual(MyBitDict.get_config(), config)  # Check config stored
+
+        # The retrieved config should include defaults that were added during validation
+        expected_config = {
+            "field1": {"start": 0, "width": 4, "type": "uint", "default": 0},
+            "field2": {"start": 4, "width": 1, "type": "bool", "default": False},
+        }
+        self.assertEqual(MyBitDict.get_config(), expected_config)  # Check config stored
         self.assertEqual(MyBitDict._total_width, 5)  # type: ignore[protected-access]
         _ = MyBitDict()  # Check we can instantiate.
 
@@ -138,9 +144,7 @@ class TestBitDictFactory(unittest.TestCase):
         field has a negative default value.
         """
         with self.assertRaises(ValueError):
-            bitdict_factory(
-                {"field1": {"start": 0, "width": 4, "type": "uint", "default": -3}}
-            )
+            bitdict_factory({"field1": {"start": 0, "width": 4, "type": "uint", "default": -3}})
 
     def test_factory_invalid_int_default(self):
         """
@@ -149,9 +153,7 @@ class TestBitDictFactory(unittest.TestCase):
         out of range for the specified width.
         """
         with self.assertRaises(ValueError):
-            bitdict_factory(
-                {"field1": {"start": 0, "width": 4, "type": "int", "default": 17}}
-            )
+            bitdict_factory({"field1": {"start": 0, "width": 4, "type": "int", "default": 17}})
 
     def test_factory_invalid_bool_default(self):
         """
@@ -159,9 +161,7 @@ class TestBitDictFactory(unittest.TestCase):
         has an invalid default value.
         """
         with self.assertRaises(TypeError):
-            bitdict_factory(
-                {"field1": {"start": 0, "width": 1, "type": "bool", "default": 2}}
-            )
+            bitdict_factory({"field1": {"start": 0, "width": 1, "type": "bool", "default": 2}})
 
     def test_factory_bitdict_missing_subtype(self):
         """
@@ -172,9 +172,7 @@ class TestBitDictFactory(unittest.TestCase):
         - When the 'subtype' key is present but its value is not a list.
         """
         with self.assertRaises(ValueError):
-            bitdict_factory(
-                {"field1": {"start": 0, "width": 4, "type": "bitdict"}}
-            )  # No subtype
+            bitdict_factory({"field1": {"start": 0, "width": 4, "type": "bitdict"}})  # No subtype
         with self.assertRaises(ValueError):
             bitdict_factory(
                 {"field1": {"start": 0, "width": 4, "type": "bitdict", "subtype": {}}}
@@ -661,9 +659,7 @@ class TestBitDict(unittest.TestCase):
 
         expected_values = [(True, False, 0, -1, 0), (True, True, 0, True, 1)]
         mode = 0
-        for constant, mode_val, reserved, sub_prop_b, sub_prop_a in [
-            expected_values[0]
-        ]:
+        for constant, mode_val, reserved, sub_prop_b, sub_prop_a in [expected_values[0]]:
             bd = self.my_bitdict({"Constant": constant, "Mode": mode_val})
             for name, value in bd:
                 if name == "Constant":
@@ -762,7 +758,61 @@ class TestBitDict(unittest.TestCase):
         configuration is read-only (immutable).
         """
         retrieved_config = self.my_bitdict.get_config()
-        self.assertEqual(retrieved_config, self.config)
+
+        # The retrieved config should include defaults and validation metadata that were added during validation
+        expected_config = {
+            "Constant": {"start": 7, "width": 1, "type": "bool", "default": False},
+            "Mode": {
+                "start": 6,
+                "width": 1,
+                "type": "bool",
+                "default": False,
+                "_bitdict": "SubValue",
+            },
+            "Reserved": {"start": 4, "width": 2, "type": "uint", "default": 0},
+            "SubValue": {
+                "start": 0,
+                "width": 4,
+                "type": "bitdict",
+                "selector": "Mode",
+                "subtype": [
+                    {
+                        "PropA": {
+                            "start": 0,
+                            "width": 2,
+                            "type": "uint",
+                            "default": 0,
+                            "description": "",
+                        },
+                        "PropB": {
+                            "start": 2,
+                            "width": 2,
+                            "type": "int",
+                            "default": -1,
+                            "description": "",
+                        },
+                    },
+                    {
+                        "PropC": {
+                            "start": 0,
+                            "width": 3,
+                            "type": "uint",
+                            "default": 1,
+                            "description": "",
+                        },
+                        "PropD": {
+                            "start": 3,
+                            "width": 1,
+                            "type": "bool",
+                            "default": True,
+                            "description": "",
+                        },
+                    },
+                ],
+            },
+        }
+
+        self.assertEqual(retrieved_config, expected_config)
         # Ensure it's read-only (check for immutability)
         with self.assertRaises(TypeError):
             retrieved_config["Constant"] = "something else"  # type: ignore
