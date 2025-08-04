@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "bitdict"
 version = "1.1.0"
-requires-python = ">= 3.10"
+requires-python = ">= 3.12"
 description = "BitDict is a Python library for creating custom bit-packed data structures with dynamically defined substructures."
 authors = [{ name = "Shaped Sundew", email = "shapedsundew9@gmail.com" }]
 readme = "README.md"
@@ -32,6 +32,16 @@ Issues = "https://github.com/Shapedsundew9/bitdict/issues"
 Changelog = "https://github.com/Shapedsundew9/bitdict/blob/main/CHANGELOG.md"
 
 
+[tool.black]
+line-length = 100
+target-version = ['py312'] # Set your target Python version
+
+
+[tool.isort]
+profile = "black"
+line_length = 100
+
+
 [tool.pyright]
 # These settings will apply to Pylance in VS Code and the pre-commit hook.
 exclude = [
@@ -45,6 +55,11 @@ reportUnknownArgumentType = "none"
 reportUnknownVariableType = "none"
 reportUnknownMemberType = "none"
 reportUnnecessaryIsInstance = "none"
+
+
+[tool.pylint.format]
+max-line-length = 100
+
 
 [tool.pylint.messages-control]
 disable = [
