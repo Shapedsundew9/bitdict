@@ -33,7 +33,7 @@ A list of formatted markdown strings representing the bitdict configuration in t
 from types import MappingProxyType
 from typing import Any
 
-from bitdict.bitdict import BitDictABC
+from bitdict.factory import BitDictABC
 
 
 def _format_undefined_row(current_bit: int, start: int, include_types: bool) -> str:
@@ -118,18 +118,14 @@ def _generate_table_header(include_types: bool, title: str) -> str:
     return header
 
 
-def _generate_table_rows(
-    config: MappingProxyType[str, Any], include_types: bool
-) -> list[str]:
+def _generate_table_rows(config: MappingProxyType[str, Any], include_types: bool) -> list[str]:
     """Generates the table rows from the configuration dictionary."""
     rows: list[str] = []
     current_bit = 0
     sorted_properties = sorted(config.items(), key=lambda item: item[1]["start"])
 
     for name, prop_config in sorted_properties:
-        new_rows, current_bit = _process_property(
-            name, prop_config, current_bit, include_types
-        )
+        new_rows, current_bit = _process_property(name, prop_config, current_bit, include_types)
         rows.extend(new_rows)
 
     return rows
@@ -144,9 +140,7 @@ def _process_subtypes(subtypes: dict[str, Any], include_types: bool) -> list[str
     return markdown_tables
 
 
-def generate_markdown_tables(
-    bitdict_t: type[BitDictABC], include_types: bool = True
-) -> list[str]:
+def generate_markdown_tables(bitdict_t: type[BitDictABC], include_types: bool = True) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
 

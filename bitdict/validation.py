@@ -57,9 +57,7 @@ class ConfigStructureValidator(BasePropertyValidator):
         """Validates the type and required keys of the property configuration."""
         required_keys = {"start", "width", "type"}
         if not isinstance(prop_config, (dict, MappingProxyType)):  # type: ignore[misc]
-            raise TypeError(
-                "Property configuration must be a dictionary or MappingProxyType"
-            )
+            raise TypeError("Property configuration must be a dictionary or MappingProxyType")
 
         # Reject MappingProxyType objects as per original behavior
         if isinstance(prop_config, MappingProxyType):  # type: ignore[misc]
@@ -69,9 +67,7 @@ class ConfigStructureValidator(BasePropertyValidator):
 
         if not required_keys.issubset(prop_config):
             missing_keys = required_keys - set(prop_config)
-            raise ValueError(
-                f"Missing required keys in property config: {missing_keys}"
-            )
+            raise ValueError(f"Missing required keys in property config: {missing_keys}")
 
 
 class StartWidthValidator(BasePropertyValidator):
@@ -103,9 +99,7 @@ class DescriptionValidator(BasePropertyValidator):
 
     def validate(self, prop_name: str, prop_config: dict[str, Any]) -> None:
         """Validates the description key in the property configuration."""
-        if "description" in prop_config and not isinstance(
-            prop_config["description"], str
-        ):
+        if "description" in prop_config and not isinstance(prop_config["description"], str):
             raise ValueError("Description must be a string")
 
 
@@ -143,9 +137,7 @@ class DefaultValueValidator(BasePropertyValidator):
         elif prop_type in ("uint", "int"):
             prop_config["default"] = 0
 
-    def _validate_default_value_type(
-        self, prop_name: str, prop_config: dict[str, Any]
-    ) -> None:
+    def _validate_default_value_type(self, prop_name: str, prop_config: dict[str, Any]) -> None:
         """Validates the type and range of the default value."""
         default_value = prop_config["default"]
         prop_type = prop_config["type"]
@@ -166,14 +158,12 @@ class DefaultValueValidator(BasePropertyValidator):
             if prop_type == "uint":
                 if not 0 <= default_value < (1 << width):
                     raise ValueError(
-                        f"Invalid default value for property"
-                        f" {prop_name}: {default_value}"
+                        f"Invalid default value for property" f" {prop_name}: {default_value}"
                     )
             else:  # prop_type == "int"
                 if not -(1 << (width - 1)) <= default_value < (1 << (width - 1)):
                     raise ValueError(
-                        f"Invalid default value for property {prop_name}"
-                        f": {default_value}"
+                        f"Invalid default value for property {prop_name}" f": {default_value}"
                     )
 
 
@@ -184,9 +174,7 @@ class ValidKeyValidator(BasePropertyValidator):
         """Validates the 'valid' key in the property configuration."""
         if prop_config["type"] == "bitdict":
             if "valid" in prop_config:
-                raise ValueError(
-                    f"'valid' key not allowed for {prop_config['type']} type"
-                )
+                raise ValueError(f"'valid' key not allowed for {prop_config['type']} type")
             return
 
         if "valid" not in prop_config:
@@ -197,9 +185,7 @@ class ValidKeyValidator(BasePropertyValidator):
             raise ValueError(f"'valid' must be a dictionary for property {prop_name}")
 
         if not valid_config:
-            raise ValueError(
-                f"'valid' dictionary cannot be empty for property {prop_name}"
-            )
+            raise ValueError(f"'valid' dictionary cannot be empty for property {prop_name}")
 
         if "value" not in valid_config and "range" not in valid_config:
             raise ValueError(
@@ -255,13 +241,9 @@ class ValidKeyValidator(BasePropertyValidator):
                 )
             for val in range(*r):
                 if not self._is_value_in_range(val, prop_config):
-                    raise ValueError(
-                        f"Value {val} out of range for property {prop_name}"
-                    )
+                    raise ValueError(f"Value {val} out of range for property {prop_name}")
 
-    def _is_value_in_range(
-        self, value: int | bool, prop_config: dict[str, Any]
-    ) -> bool:
+    def _is_value_in_range(self, value: int | bool, prop_config: dict[str, Any]) -> bool:
         """Checks if a value is within the allowed range for a property."""
         if prop_config["type"] == "bool":
             return value in (True, False)
@@ -283,9 +265,7 @@ class BitDictPropertiesValidator(BasePropertyValidator):
         # This will be implemented when needed - for now just validate structure
         if "subtype" not in prop_config or not isinstance(prop_config["subtype"], list):
             raise ValueError("'bitdict' type requires a 'subtype' list")
-        if "selector" not in prop_config or not isinstance(
-            prop_config["selector"], str
-        ):
+        if "selector" not in prop_config or not isinstance(prop_config["selector"], str):
             raise ValueError("'bitdict' type requires a 'selector' field")
 
 
@@ -306,7 +286,7 @@ class ConfigurationValidator:
         ]
 
     def validate_property_config(
-        self, prop_config_top: dict[str, Any], subtypes: dict[str, list[Any]]
+        self, prop_config_top: dict[str, Any], subtypes: dict[str, list[Any]], factory: Any = None
     ) -> None:
         """
         Validates the entire property configuration.
@@ -314,6 +294,7 @@ class ConfigurationValidator:
         Args:
             prop_config_top: The top-level configuration dictionary
             subtypes: Dictionary to store validated subtypes
+            factory: Optional factory for creating BitDict classes (to avoid circular imports)
 
         Raises:
             ValueError: If the configuration is invalid
@@ -325,12 +306,10 @@ class ConfigurationValidator:
             # Handle bitdict-specific validation that requires access to top-level config
             if prop_config["type"] == "bitdict":
                 self._validate_bitdict_properties(
-                    prop_name, prop_config, prop_config_top, subtypes
+                    prop_name, prop_config, prop_config_top, subtypes, factory
                 )
 
-    def _validate_single_property(
-        self, prop_name: str, prop_config: dict[str, Any]
-    ) -> None:
+    def _validate_single_property(self, prop_name: str, prop_config: dict[str, Any]) -> None:
         """Validate a single property using all validators."""
         for validator in self._validators:
             validator.validate(prop_name, prop_config)
@@ -341,6 +320,7 @@ class ConfigurationValidator:
         prop_config: dict[str, Any],
         prop_config_top: dict[str, Any],
         subtypes: dict[str, list[Any]],
+        factory: Any = None,
     ) -> None:
         """Validates the properties of a 'bitdict' type configuration."""
         if prop_config["type"] != "bitdict":
@@ -349,9 +329,7 @@ class ConfigurationValidator:
         # Check basic requirements
         if "subtype" not in prop_config or not isinstance(prop_config["subtype"], list):
             raise ValueError("'bitdict' type requires a 'subtype' list")
-        if "selector" not in prop_config or not isinstance(
-            prop_config["selector"], str
-        ):
+        if "selector" not in prop_config or not isinstance(prop_config["selector"], str):
             raise ValueError("'bitdict' type requires a 'selector' field")
 
         selector = prop_config["selector"]
@@ -370,26 +348,54 @@ class ConfigurationValidator:
                 f"'bitdict' type for property '{prop_name}' must have at least one subtype"
             )
 
-        # Import here to avoid circular imports and delay until actually needed
-        # pylint: disable=import-outside-toplevel
-        # pylint: disable=cyclic-import
-        from .bitdict import bitdict_factory
+        # Use factory parameter to avoid circular imports
+        # (create_bitdict logic moved inline below)
 
         pcfg: list[dict[str, Any] | None] = prop_config["subtype"]
         for idx, sub_config in enumerate(pcfg):
             # Recursively validate sub-configurations
-            subtypes.setdefault(prop_name, []).append(
-                None
-                if sub_config is None
-                else bitdict_factory(
-                    sub_config,
-                    name=f"{prop_name}{idx}",
-                    title=f"{prop_name}: {selector} = {idx}",
-                )
-            )
-            if sub_config is None and self._is_valid_value(
-                idx, prop_config_top[selector]
-            ):
+            if sub_config is None:
+                subtypes.setdefault(prop_name, []).append(None)
+            else:
+                # Validate the subconfig first to add defaults
+                from copy import deepcopy
+
+                validated_sub_config = deepcopy(sub_config)
+
+                # Apply validation to add defaults
+                sub_subtypes: dict[str, list[Any]] = {}
+                validator = ConfigurationValidator()
+                validator.validate_property_config(validated_sub_config, sub_subtypes, factory)
+
+                # Merge nested subtypes back to the parent level
+                for sub_key, sub_list in sub_subtypes.items():
+                    subtypes[sub_key] = sub_list
+
+                # Update the original config with defaults
+                pcfg[idx] = validated_sub_config
+
+                # Now create the BitDict class with the validated config and its subtypes
+                if factory is not None:
+                    # Use factory method which supports subtypes parameter
+                    sub_bitdict_class = factory.create_bitdict_class(
+                        validated_sub_config,
+                        name=f"{prop_name}{idx}",
+                        title=f"{prop_name}: {selector} = {idx}",
+                        subtypes=sub_subtypes,
+                    )
+                else:
+                    # Fallback for backward compatibility
+                    from .factory import bitdict_factory
+
+                    sub_bitdict_class = bitdict_factory(
+                        validated_sub_config,
+                        name=f"{prop_name}{idx}",
+                        title=f"{prop_name}: {selector} = {idx}",
+                    )
+
+                # Store the class
+                subtypes.setdefault(prop_name, []).append(sub_bitdict_class)
+            if sub_config is None and self._is_valid_value(idx, prop_config_top[selector]):
                 raise ValueError(
                     f"Subtype {idx} for property '{prop_name}' "
                     "is a valid selection but no bitdict defined."
@@ -429,9 +435,7 @@ class OverlapValidator:
         """
         used_bits = set()
         for _, prop_config in config.items():
-            for i in range(
-                prop_config["start"], prop_config["start"] + prop_config["width"]
-            ):
+            for i in range(prop_config["start"], prop_config["start"] + prop_config["width"]):
                 if i in used_bits:
                     raise ValueError(
                         f"Overlapping bit definitions: bit {i} is used by multiple properties"
@@ -441,15 +445,20 @@ class OverlapValidator:
 
 # Convenience function for backward compatibility
 def validate_property_config(
-    prop_config_top: dict[str, Any], subtypes: dict[str, list[Any]]
+    prop_config_top: dict[str, Any], subtypes: dict[str, list[Any]], factory: Any = None
 ) -> None:
     """
     Validates the property configuration using the new validator classes.
 
     This function maintains backward compatibility with the existing API.
+
+    Args:
+        prop_config_top: The top-level configuration dictionary
+        subtypes: Dictionary to store validated subtypes
+        factory: Optional factory for creating BitDict classes (to avoid circular imports)
     """
     validator = ConfigurationValidator()
-    validator.validate_property_config(prop_config_top, subtypes)
+    validator.validate_property_config(prop_config_top, subtypes, factory)
 
 
 def check_overlapping(config: dict[str, Any]) -> None:

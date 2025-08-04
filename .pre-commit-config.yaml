@@ -3,18 +3,26 @@ repos:
     rev: 25.1.0
     hooks:
       - id: black
+        name: black (pyproject.toml)
+        stages: [pre-commit]
   - repo: https://github.com/PyCQA/isort
     rev: 6.0.1
     hooks:
       - id: isort
         name: isort (pyproject.toml)
         args: ["--profile", "black"]
+        stages: [pre-commit]
+
   - repo: https://github.com/PyCQA/pylint
     rev: v3.3.7
     hooks:
       - id: pylint
+        name: pylint (pyproject.toml)
         args: ["--rcfile=pyproject.toml"]
+        stages: [pre-push]
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.403
     hooks:
       - id: pyright
+        stages: [pre-push]
+        name: pyright (pyproject.toml)
