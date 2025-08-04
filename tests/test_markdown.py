@@ -3,7 +3,14 @@ Unit tests for the markdown module.
 """
 
 import unittest
-from bitdict import generate_markdown_tables, bitdict_factory
+
+from bitdict import bitdict_factory, generate_markdown_tables
+
+# Lots of duplicate looking test data & protected access in the test cases
+# pylint: disable=duplicate-code
+# pylint: disable=protected-access
+# pylint: disable=too-many-public-methods
+# pylint: disable=too-many-lines
 
 
 class TestMarkdown(unittest.TestCase):

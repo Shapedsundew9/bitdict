@@ -10,7 +10,13 @@ import timeit
 import unittest
 from types import MappingProxyType
 
-from bitdict import bitdict_factory, BitDictABC
+from bitdict import BitDictABC, bitdict_factory
+
+# Lots of duplicate looking test data & protected access in the test cases
+# pylint: disable=duplicate-code
+# pylint: disable=protected-access
+# pylint: disable=too-many-public-methods
+# pylint: disable=too-many-lines
 
 
 class TestBitDictFactory(unittest.TestCase):
@@ -47,7 +53,7 @@ class TestBitDictFactory(unittest.TestCase):
         MyBitDict = bitdict_factory(config)
         self.assertTrue(issubclass(MyBitDict, object))  # Check it's a class
         self.assertEqual(MyBitDict.get_config(), config)  # Check config stored
-        self.assertEqual(MyBitDict._total_width, 5)  # pylint: disable=protected-access
+        self.assertEqual(MyBitDict._total_width, 5)  # type: ignore[protected-access]
         _ = MyBitDict()  # Check we can instantiate.
 
     def test_factory_invalid_config_type(self) -> None:
@@ -1192,7 +1198,7 @@ class TestBitDict(unittest.TestCase):
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
-        bd._config["field1"]["type"] = "unknown"  # pylint: disable=protected-access
+        bd._config["field1"]["type"] = "unknown"  # type: ignore[protected-access]
         with self.assertRaises(AssertionError):
             _ = bd["field1"]
 
@@ -1582,7 +1588,7 @@ class TestBitDict(unittest.TestCase):
         """Test that setting a reserved field raises an AssertionError."""
 
         bd = self.my_bitdict()
-        bd._config["Reserved"]["type"] = "unknown"  # pylint: disable=protected-access
+        bd._config["Reserved"]["type"] = "unknown"  # type: ignore[protected-access]
         with self.assertRaises(AssertionError):
             bd["Reserved"] = 1
 
@@ -1879,7 +1885,7 @@ class TestBitDict(unittest.TestCase):
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
-        bd._set_value(0x30)  # pylint: disable=protected-access
+        bd._set_value(0x30)  # type: ignore[protected-access]
         self.assertFalse(bd.valid())
 
     def test_inspect_nested_bitdict(self):
@@ -1964,7 +1970,7 @@ class TestBitDict(unittest.TestCase):
         }
         MyBitDict = bitdict_factory(config)
         bd = MyBitDict()
-        bd._set_value(0x30)  # pylint: disable=protected-access
+        bd._set_value(0x30)  # type: ignore[protected-access]
         self.assertEqual(bd.inspect(), {"field2": 3})
 
     def test__bitdict_config_with_default(self):
@@ -2020,8 +2026,8 @@ class TestBitDict(unittest.TestCase):
         the expected result.
         """
 
-        def custom_verification_function(bd):
-            return bd["Constant"] and bd["Mode"]
+        def custom_verification_function(bd: BitDictABC) -> bool:
+            return bool(bd["Constant"] and bd["Mode"])
 
         bd = self.my_bitdict()
         bd.assign_verification_function(custom_verification_function)

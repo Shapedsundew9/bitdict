@@ -1,0 +1,6 @@
+# These MUST be the same as in .pre-commit-config.yaml else pre-commit may fail.
+black==25.1.0
+isort==6.0.1
+pylint==3.3.7
+pyright==1.1.403
+pre-commit

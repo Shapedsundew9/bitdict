@@ -27,14 +27,16 @@ Usage:
 """
 
 from __future__ import annotations
-from typing import Any, Generator, Callable
-from types import MappingProxyType
-from copy import deepcopy
+
 from abc import ABC, abstractmethod
-from .validation import validate_property_config, check_overlapping
+from copy import deepcopy
+from types import MappingProxyType
+from typing import Any, Callable, Generator
+
+from .validation import check_overlapping, validate_property_config
 
 
-def _calculate_total_width(cfg) -> int:
+def _calculate_total_width(cfg: dict[str, Any]) -> int:
     """
     Calculates the total bit width based on the configuration.
 
@@ -42,7 +44,7 @@ def _calculate_total_width(cfg) -> int:
     required to store all the bit fields defined in the configuration.
 
     Args:
-        cfg (dict): The configuration dictionary.
+        cfg: The configuration dictionary.
 
     Returns:
         int: The total bit width.
@@ -54,10 +56,10 @@ def _calculate_total_width(cfg) -> int:
     return max_bit
 
 
-
 def _is_valid_value(value: int | bool, prop_config: dict[str, Any]) -> bool:
     """Checks if a value is valid according to the 'valid'
     key in the property configuration."""
+    # pylint: disable=duplicate-code
     if "valid" not in prop_config:
         return True
 
@@ -78,6 +80,9 @@ class BitDictABC(ABC):
 
     _config: MappingProxyType[str, Any]
     _total_width: int
+    subtypes: dict[str, list[type[BitDictABC] | None]]
+    _total_width: int
+    title: str
 
     @abstractmethod
     def __init__(
@@ -146,7 +151,7 @@ class BitDictABC(ABC):
         """Returns the configuration dictionary for the BitDict."""
 
     @abstractmethod
-    def inspect(self) -> dict[str, dict[str, bool | int | dict]]:
+    def inspect(self) -> dict[str, Any]:
         """Inspects the current state of the BitDict and returns a dictionary."""
 
     @abstractmethod
@@ -251,7 +256,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         bd2 = MyBitDict(value)
         ```
     """
-    if not isinstance(config, dict):
+    if not isinstance(config, dict):  # type: ignore[runtime safety]
         raise TypeError("config must be a dictionary")
     if not name.isidentifier():
         raise ValueError("Invalid class name")
@@ -310,8 +315,8 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         _total_width: int = total_width
         title: str = _title
         __name__: str = name
-        verification_function: Callable[[BitDict], bool] = (  # pylint: disable=E0602
-            staticmethod(lambda _: True)
+        verification_function: Callable[[BitDictABC], bool] = staticmethod(  # type: ignore[misc]
+            lambda _: True  # type: ignore[misc]
         )
         __slots__: tuple[str, ...] = (
             "_value",
@@ -390,7 +395,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                     )
                 # Convert bytes to integer (big-endian)
                 self.set(int.from_bytes(value, "big"))
-            elif isinstance(value, dict):
+            elif isinstance(value, dict):  # type: ignore[misc]
                 self.set(
                     value, ignore_unknown
                 )  # Use update to handle defaults and type checking
@@ -472,20 +477,20 @@ def bitdict_factory(  # pylint: disable=too-many-statements
 
             match prop_config["type"]:
                 case "bool":
-                    if not isinstance(value, (bool, int)):
+                    if not isinstance(value, (bool, int)):  # type: ignore[misc]
                         raise TypeError(
                             f"Expected boolean or integer value for property '{key}'"
                         )
                     value = 1 if value else 0
                 case "uint":
-                    if not isinstance(value, int):
+                    if not isinstance(value, int):  # type: ignore[misc]
                         raise TypeError(f"Expected integer value for property '{key}'")
                     if not 0 <= value < (1 << width):
                         raise ValueError(
                             f"Value {value} out of range for property '{key}'"
                         )
                 case "int":
-                    if not isinstance(value, int):
+                    if not isinstance(value, int):  # type: ignore[misc]
                         raise TypeError(f"Expected integer value for property '{key}'")
                     if not -(1 << (width - 1)) <= value < (1 << (width - 1)):
                         raise ValueError(
@@ -715,9 +720,9 @@ def bitdict_factory(  # pylint: disable=too-many-statements
 
             return cls._config
 
-        def inspect(self) -> dict[str, dict[str, bool | int | dict]]:
+        def inspect(self) -> dict[str, Any]:
             """Inspects the BitDict and returns a dictionary of properties with invalid values."""
-            invalid_props = {}
+            invalid_props: dict[str, Any] = {}
             for prop_name, prop_config in self._config.items():
                 if prop_config["type"] == "bitdict":
                     selector_value = self[prop_config["selector"]]
@@ -786,6 +791,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 AssertionError: If the selector value is not an integer when setting
                 a sub-BitDict.
             """
+            # pylint: disable=too-many-branches
 
             if isinstance(value, dict):
                 if ignore_unknown:
@@ -844,7 +850,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 BitDict's bit_length.
             """
 
-            if not isinstance(data, dict):
+            if not isinstance(data, dict):  # type: ignore[misc]
                 raise TypeError("update() requires a dictionary")
             for key, value in data.items():
                 self[key] = value  # Use __setitem__ for type/range checking
@@ -886,7 +892,7 @@ def bitdict_factory(  # pylint: disable=too-many-statements
                 for JSON serialization.
             """
 
-            result = {}
+            result: dict[str, Any] = {}
             for name, _ in list(self)[::-1]:  # Use the iterator
                 result[name] = self[name]
                 if hasattr(result[name], "to_json"):

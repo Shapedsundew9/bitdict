@@ -4,7 +4,7 @@
         "name": "Python 3.12",
         "dockerFile": "Dockerfile",
         "workspaceFolder": "/workspaces/bitdict",
-    "customizations": {
+        "customizations": {
                 "vscode": {
                         "extensions": [
                                 "ms-python.python",
@@ -27,20 +27,20 @@
                                         "editor.codeActionsOnSave": {
                                                 "source.organizeImports": "explicit"
                                         }
-                                }, 
+                                },
                                 "[json]": {
-                                "editor.formatOnSave": true,
-                                "editor.defaultFormatter": "vscode.json-language-features"
+                                        "editor.formatOnSave": true,
+                                        "editor.defaultFormatter": "vscode.json-language-features"
                                 },
                                 "[jsonc]": {
-                                "editor.formatOnSave": true,
-                                "editor.defaultFormatter": "vscode.json-language-features"
+                                        "editor.formatOnSave": true,
+                                        "editor.defaultFormatter": "vscode.json-language-features"
                                 },
                                 "isort.args": [
                                         "--profile",
                                         "black"
                                 ],
-                                    "python.testing.unittestArgs": [
+                                "python.testing.unittestArgs": [
                                         "-v",
                                         "-s",
                                         "./tests",
@@ -55,5 +55,5 @@
         "containerEnv": {
                 // Environment variables to set in the container.
         },
-          "postCreateCommand": "bash .devcontainer/postcreate.sh"
+        "postCreateCommand": "bash .devcontainer/post-create.sh"
 }

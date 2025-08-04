@@ -2,12 +2,12 @@
 The module provides a helper function to convert a bitdict configuration dictionary into a
 a series of markdown tables.
 
-This function takes the configuration dictionary as input and outputs list of 
-markdown strings representing the data in table form. It can be useful for generating 
+This function takes the configuration dictionary as input and outputs list of
+markdown strings representing the data in table form. It can be useful for generating
 documentation or for displaying configuration settings in a readable format.
 
 The function is called `config_to_markdown` and takes the following arguments:
-    
+
 - `config`: The bitdict configuration dictionary that needs to be converted.
 - `include_types`: A boolean to indicate if data types should be included in the output.
 
@@ -30,6 +30,11 @@ Returns:
 A list of formatted markdown strings representing the bitdict configuration in table format.
 """
 
+from types import MappingProxyType
+from typing import Any
+
+from bitdict.bitdict import BitDictABC
+
 
 def _format_undefined_row(current_bit: int, start: int, include_types: bool) -> str:
     """Formats a row for undefined bits in the table."""
@@ -42,7 +47,7 @@ def _format_undefined_row(current_bit: int, start: int, include_types: bool) -> 
     return f"| {undefined_name} | {undefined_bitfield} | N/A | N/A |"
 
 
-def _get_description(prop_config: dict) -> str:
+def _get_description(prop_config: dict[str, Any]) -> str:
     """Extracts and formats the description from the property configuration."""
     description = ""
     if "valid" in prop_config:
@@ -55,7 +60,7 @@ def _get_description(prop_config: dict) -> str:
     return description + prop_config.get("description", "")
 
 
-def _format_row(name: str, prop_config: dict, **kwargs) -> str:
+def _format_row(name: str, prop_config: dict[str, Any], **kwargs: Any) -> str:
     """Formats a standard data row for the table."""
     bitfield = kwargs.get("bitfield", "N/A")
     default = kwargs.get("default", "N/A")
@@ -68,10 +73,10 @@ def _format_row(name: str, prop_config: dict, **kwargs) -> str:
 
 
 def _process_property(
-    name: str, prop_config: dict, current_bit: int, include_types: bool
+    name: str, prop_config: dict[str, Any], current_bit: int, include_types: bool
 ) -> tuple[list[str], int]:
     """Processes a single property and returns the row and the updated current bit."""
-    rows = []
+    rows: list[str] = []
     start = prop_config["start"]
     width = prop_config["width"]
     end = start + width - 1
@@ -113,9 +118,11 @@ def _generate_table_header(include_types: bool, title: str) -> str:
     return header
 
 
-def _generate_table_rows(config: dict, include_types: bool) -> list[str]:
+def _generate_table_rows(
+    config: MappingProxyType[str, Any], include_types: bool
+) -> list[str]:
     """Generates the table rows from the configuration dictionary."""
-    rows = []
+    rows: list[str] = []
     current_bit = 0
     sorted_properties = sorted(config.items(), key=lambda item: item[1]["start"])
 
@@ -128,16 +135,18 @@ def _generate_table_rows(config: dict, include_types: bool) -> list[str]:
     return rows
 
 
-def _process_subtypes(subtypes: dict, include_types: bool) -> list[str]:
+def _process_subtypes(subtypes: dict[str, Any], include_types: bool) -> list[str]:
     """Processes nested bitdicts and generates their markdown tables."""
-    markdown_tables = []
+    markdown_tables: list[str] = []
     for subtypes_list in subtypes.values():
         for subtype in subtypes_list:
             markdown_tables.extend(generate_markdown_tables(subtype, include_types))
     return markdown_tables
 
 
-def generate_markdown_tables(bitdict_t: type, include_types: bool = True) -> list[str]:
+def generate_markdown_tables(
+    bitdict_t: type[BitDictABC], include_types: bool = True
+) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
 

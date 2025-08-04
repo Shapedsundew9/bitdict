@@ -10,17 +10,23 @@ import unittest
 from types import MappingProxyType
 
 from bitdict.validation import (
-    PropertyNameValidator,
+    BitDictPropertiesValidator,
     ConfigStructureValidator,
+    ConfigurationValidator,
+    DefaultValueValidator,
+    DescriptionValidator,
+    OverlapValidator,
+    PropertyNameValidator,
     StartWidthValidator,
     TypeValidator,
-    DescriptionValidator,
-    DefaultValueValidator,
     ValidKeyValidator,
-    BitDictPropertiesValidator,
-    ConfigurationValidator,
-    OverlapValidator,
 )
+
+# Lots of duplicate looking test data & protected access in the test cases
+# pylint: disable=duplicate-code
+# pylint: disable=protected-access
+# pylint: disable=too-many-public-methods
+# pylint: disable=too-many-lines
 
 
 class TestPropertyNameValidator(unittest.TestCase):
@@ -38,7 +44,7 @@ class TestPropertyNameValidator(unittest.TestCase):
     def test_invalid_property_name_not_string(self):
         """Test that non-string property names raise ValueError."""
         with self.assertRaises(ValueError):
-            self.validator.validate(123, {})
+            self.validator.validate(123, {})  # type: ignore[intentional test]
 
     def test_invalid_property_name_not_identifier(self):
         """Test that invalid identifiers raise ValueError."""
@@ -64,9 +70,9 @@ class TestConfigStructureValidator(unittest.TestCase):
     def test_invalid_config_not_dict(self):
         """Test that non-dict configs raise TypeError."""
         with self.assertRaises(TypeError):
-            self.validator.validate("test", "invalid")
+            self.validator.validate("test", "invalid")  # type: ignore[intentional test]
         with self.assertRaises(TypeError):
-            self.validator.validate("test", 123)
+            self.validator.validate("test", 123)  # type: ignore[intentional test]
 
     def test_invalid_config_mappingproxy(self):
         """Test that MappingProxyType configs raise AssertionError."""
@@ -79,9 +85,13 @@ class TestConfigStructureValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.validator.validate("test", {"start": 0, "width": 1})  # Missing type
         with self.assertRaises(ValueError):
-            self.validator.validate("test", {"width": 1, "type": "bool"})  # Missing start
+            self.validator.validate(
+                "test", {"width": 1, "type": "bool"}
+            )  # Missing start
         with self.assertRaises(ValueError):
-            self.validator.validate("test", {"start": 0, "type": "bool"})  # Missing width
+            self.validator.validate(
+                "test", {"start": 0, "type": "bool"}
+            )  # Missing width
 
 
 class TestStartWidthValidator(unittest.TestCase):
@@ -259,20 +269,12 @@ class TestValidKeyValidator(unittest.TestCase):
 
     def test_valid_value_set(self):
         """Test valid 'value' set in 'valid' key."""
-        config = {
-            "type": "uint",
-            "width": 4,
-            "valid": {"value": {1, 2, 3}}
-        }
+        config = {"type": "uint", "width": 4, "valid": {"value": {1, 2, 3}}}
         self.validator.validate("test", config)
 
     def test_valid_range_list(self):
         """Test valid 'range' list in 'valid' key."""
-        config = {
-            "type": "uint",
-            "width": 4,
-            "valid": {"range": [(1, 4), (6, 9)]}
-        }
+        config = {"type": "uint", "width": 4, "valid": {"range": [(1, 4), (6, 9)]}}
         self.validator.validate("test", config)
 
     def test_invalid_valid_not_dict(self):
@@ -311,7 +313,7 @@ class TestBitDictPropertiesValidator(unittest.TestCase):
             "type": "bitdict",
             "width": 4,
             "subtype": [{"field": {"type": "uint", "width": 2, "start": 0}}],
-            "selector": "mode"
+            "selector": "mode",
         }
         self.validator.validate("test", config)
 
@@ -326,7 +328,7 @@ class TestBitDictPropertiesValidator(unittest.TestCase):
         config = {
             "type": "bitdict",
             "width": 4,
-            "subtype": [{"field": {"type": "uint", "width": 2, "start": 0}}]
+            "subtype": [{"field": {"type": "uint", "width": 2, "start": 0}}],
         }
         with self.assertRaises(ValueError):
             self.validator.validate("test", config)
@@ -340,7 +342,7 @@ class TestOverlapValidator(unittest.TestCase):
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
             "field2": {"start": 4, "width": 2, "type": "uint"},
-            "field3": {"start": 6, "width": 1, "type": "bool"}
+            "field3": {"start": 6, "width": 1, "type": "bool"},
         }
         OverlapValidator.check_overlapping(config)
 
@@ -348,7 +350,7 @@ class TestOverlapValidator(unittest.TestCase):
         """Test that overlapping configurations raise ValueError."""
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
-            "field2": {"start": 3, "width": 2, "type": "uint"}  # Overlaps with field1
+            "field2": {"start": 3, "width": 2, "type": "uint"},  # Overlaps with field1
         }
         with self.assertRaises(ValueError):
             OverlapValidator.check_overlapping(config)
@@ -357,7 +359,11 @@ class TestOverlapValidator(unittest.TestCase):
         """Test that adjacent fields don't trigger overlap detection."""
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
-            "field2": {"start": 4, "width": 4, "type": "uint"}  # Adjacent, not overlapping
+            "field2": {
+                "start": 4,
+                "width": 4,
+                "type": "uint",
+            },  # Adjacent, not overlapping
         }
         OverlapValidator.check_overlapping(config)
 
@@ -372,25 +378,21 @@ class TestConfigurationValidator(unittest.TestCase):
         """Test that a simple valid configuration passes validation."""
         config = {
             "field1": {"start": 0, "width": 4, "type": "uint"},
-            "field2": {"start": 4, "width": 1, "type": "bool"}
+            "field2": {"start": 4, "width": 1, "type": "bool"},
         }
         subtypes = {}
         self.validator.validate_property_config(config, subtypes)
 
     def test_invalid_property_name(self):
         """Test that invalid property names are caught."""
-        config = {
-            "123invalid": {"start": 0, "width": 4, "type": "uint"}
-        }
+        config = {"123invalid": {"start": 0, "width": 4, "type": "uint"}}
         subtypes = {}
         with self.assertRaises(ValueError):
             self.validator.validate_property_config(config, subtypes)
 
     def test_missing_required_keys(self):
         """Test that missing required keys are caught."""
-        config = {
-            "field1": {"start": 0, "width": 4}  # Missing type
-        }
+        config = {"field1": {"start": 0, "width": 4}}  # Missing type
         subtypes = {}
         with self.assertRaises(ValueError):
             self.validator.validate_property_config(config, subtypes)
