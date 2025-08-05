@@ -322,6 +322,7 @@ class ConfigurationValidator:
         subtypes: dict[str, list[Any]],
         factory: Any = None,
     ) -> None:
+        # pylint: disable=too-many-arguments,too-many-positional-arguments,too-many-locals,too-many-branches
         """Validates the properties of a 'bitdict' type configuration."""
         if prop_config["type"] != "bitdict":
             return
@@ -358,7 +359,7 @@ class ConfigurationValidator:
                 subtypes.setdefault(prop_name, []).append(None)
             else:
                 # Validate the subconfig first to add defaults
-                from copy import deepcopy
+                from copy import deepcopy  # pylint: disable=import-outside-toplevel
 
                 validated_sub_config = deepcopy(sub_config)
 
@@ -385,7 +386,7 @@ class ConfigurationValidator:
                     )
                 else:
                     # Fallback for backward compatibility
-                    from .factory import bitdict_factory
+                    from .factory import bitdict_factory  # pylint: disable=import-outside-toplevel
 
                     sub_bitdict_class = bitdict_factory(
                         validated_sub_config,

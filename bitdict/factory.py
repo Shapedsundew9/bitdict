@@ -186,6 +186,7 @@ class BitDictFactory:
         title: str = "BitDict",
         subtypes: dict[str, list[type[BitDictABC] | None]] | None = None,
     ) -> type[BitDictABC]:
+        # pylint: disable=too-many-statements
         """
         Creates a BitDict class based on the provided configuration.
 
@@ -226,6 +227,7 @@ class BitDictFactory:
             _total_width: int = total_width
             title: str = _title
             __name__: str = name
+            # pylint: disable=line-too-long
             verification_function: Callable[[BitDictABC], bool] = staticmethod(  # type: ignore[misc]
                 lambda _: True  # type: ignore[misc]
             )
@@ -421,7 +423,8 @@ class BitDictFactory:
                 return self._value
 
             def _set_parent(self, parent: BitDictABC, key: str) -> None:
-                """Sets the parent BitDict and the key associated with this BitDict in the parent."""
+                """Sets the parent BitDict and the key associated with this BitDict
+                in the parent."""
                 self._parent = parent
                 self._parent_key = key
 
@@ -458,7 +461,8 @@ class BitDictFactory:
                 return cls._config
 
             def inspect(self) -> dict[str, Any]:
-                """Inspects the BitDict and returns a dictionary of properties with invalid values."""
+                """Inspects the BitDict and returns a dictionary of properties
+                with invalid values."""
                 invalid_props: dict[str, Any] = {}
                 for prop_name, prop_config in self._config.items():
                     if prop_config["type"] == "bitdict":
@@ -491,6 +495,7 @@ class BitDictFactory:
                         self[prop_name] = prop_config["default"]
 
             def set(self, value: int | dict[str, Any], ignore_unknown: bool = True) -> None:
+                # pylint: disable=too-many-branches
                 """Sets the value of the BitDict."""
                 if isinstance(value, dict):
                     if ignore_unknown:
@@ -598,7 +603,10 @@ def bitdict_factory(
     using the new factory architecture internally.
     """
     # Import validation here to avoid circular imports
-    from .validation import check_overlapping, validate_property_config
+    from .validation import (  # pylint: disable=import-outside-toplevel
+        check_overlapping,
+        validate_property_config,
+    )
 
     if not isinstance(config, dict):  # type: ignore[runtime safety]
         raise TypeError("config must be a dictionary")

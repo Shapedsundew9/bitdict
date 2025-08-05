@@ -85,13 +85,9 @@ class TestConfigStructureValidator(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.validator.validate("test", {"start": 0, "width": 1})  # Missing type
         with self.assertRaises(ValueError):
-            self.validator.validate(
-                "test", {"width": 1, "type": "bool"}
-            )  # Missing start
+            self.validator.validate("test", {"width": 1, "type": "bool"})  # Missing start
         with self.assertRaises(ValueError):
-            self.validator.validate(
-                "test", {"start": 0, "type": "bool"}
-            )  # Missing width
+            self.validator.validate("test", {"start": 0, "type": "bool"})  # Missing width
 
 
 class TestStartWidthValidator(unittest.TestCase):

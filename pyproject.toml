@@ -66,4 +66,5 @@ disable = [
     "W2301", # Unnecessary use of ellipsis - for readability
     "W0107", # Unnecessary pass statement - for readability
     "R0903", # Too few public methods - design choice
+    "R0401", # Cyclic import - design choice for deferred imports
 ]

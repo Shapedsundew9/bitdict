@@ -759,7 +759,8 @@ class TestBitDict(unittest.TestCase):
         """
         retrieved_config = self.my_bitdict.get_config()
 
-        # The retrieved config should include defaults and validation metadata that were added during validation
+        # The retrieved config should include defaults and validation metadata
+        # that were added during validation
         expected_config = {
             "Constant": {"start": 7, "width": 1, "type": "bool", "default": False},
             "Mode": {
