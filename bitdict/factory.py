@@ -96,6 +96,12 @@ class BitDictABC(ABC):
 
     @classmethod
     @abstractmethod
+    def fast_fetch(cls, key: str, value: int) -> int:
+        """Fetches a field value from the supplied value interpreting it using the top
+        level BitDict configuration without any checking. Fast."""
+
+    @classmethod
+    @abstractmethod
     def get_config(cls) -> MappingProxyType[str, Any]:
         """Returns the configuration dictionary for the BitDict."""
 
@@ -454,6 +460,13 @@ class BitDictFactory:
             def clear(self) -> None:
                 """Clears the bit dictionary, setting all bits to 0."""
                 self.set(0)
+
+            @classmethod
+            def fast_fetch(cls, key: str, value: int) -> int:
+                """Fetches a field value from the supplied value interpreting it using the top
+                level BitDict configuration without any checking. Fast but dangerous."""
+                prop_config = cls._config[key]
+                return (value >> prop_config["start"]) & (1 << prop_config["width"]) - 1
 
             @classmethod
             def get_config(cls) -> MappingProxyType[str, Any]:
