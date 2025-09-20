@@ -436,6 +436,111 @@ def _check_overlapping(cfg) -> None:
             used_bits.add(i)
 
 
+def _validate_groups(config: dict[str, Any]) -> None:
+    """
+    Validates the group configuration in the BitDict config.
+    
+    Groups allow organizing related bit fields with descriptions.
+    Each group can have a name, description, list of fields, and 
+    optionally require that fields be contiguous.
+    
+    Args:
+        config (dict): The configuration dictionary which may contain a 'groups' key.
+        
+    Raises:
+        ValueError: If group configuration is invalid.
+        TypeError: If group configuration has wrong type.
+    """
+    if "groups" not in config:
+        return  # Groups are optional
+        
+    groups = config["groups"]
+    if not isinstance(groups, list):
+        raise TypeError("Groups must be a list")
+        
+    all_field_names = {name for name in config.keys() if name != "groups"}
+    grouped_fields = set()
+    
+    for i, group in enumerate(groups):
+        if not isinstance(group, dict):
+            raise TypeError(f"Group {i} must be a dictionary")
+            
+        # Validate required keys
+        required_keys = {"name", "fields"}
+        if not required_keys.issubset(group):
+            missing_keys = required_keys - set(group)
+            raise ValueError(f"Group {i} missing required keys: {missing_keys}")
+            
+        # Validate group name
+        group_name = group["name"]
+        if not isinstance(group_name, str) or not group_name:
+            raise ValueError(f"Group {i} name must be a non-empty string")
+            
+        # Validate fields list
+        fields = group["fields"]
+        if not isinstance(fields, list) or not fields:
+            raise ValueError(f"Group '{group_name}' fields must be a non-empty list")
+            
+        # Check that all fields exist in the configuration
+        for field in fields:
+            if not isinstance(field, str):
+                raise ValueError(f"Group '{group_name}' field names must be strings")
+            if field not in all_field_names:
+                raise ValueError(f"Group '{group_name}' references unknown field '{field}'")
+            if field in grouped_fields:
+                raise ValueError(f"Field '{field}' is already assigned to another group")
+            grouped_fields.add(field)
+            
+        # Validate optional description
+        if "description" in group and not isinstance(group["description"], str):
+            raise ValueError(f"Group '{group_name}' description must be a string")
+            
+        # Validate contiguous requirement if present
+        if "contiguous" in group:
+            if not isinstance(group["contiguous"], bool):
+                raise ValueError(f"Group '{group_name}' contiguous must be a boolean")
+                
+            if group["contiguous"]:
+                _validate_group_contiguous(group, config)
+
+
+def _validate_group_contiguous(group: dict[str, Any], config: dict[str, Any]) -> None:
+    """
+    Validates that fields in a group are contiguous in bit positions.
+    
+    Args:
+        group (dict): The group configuration.
+        config (dict): The full BitDict configuration.
+        
+    Raises:
+        ValueError: If the group fields are not contiguous.
+    """
+    group_name = group["name"]
+    fields = group["fields"]
+    
+    # Get bit ranges for all fields in the group
+    bit_ranges = []
+    for field in fields:
+        field_config = config[field]
+        start = field_config["start"]
+        end = start + field_config["width"] - 1
+        bit_ranges.append((start, end, field))
+        
+    # Sort by start position
+    bit_ranges.sort()
+    
+    # Check contiguity
+    for i in range(1, len(bit_ranges)):
+        prev_end = bit_ranges[i-1][1]
+        curr_start = bit_ranges[i][0]
+        
+        if curr_start != prev_end + 1:
+            raise ValueError(
+                f"Group '{group_name}' fields are not contiguous: "
+                f"gap between bits {prev_end} and {curr_start}"
+            )
+
+
 def bitdict_factory(  # pylint: disable=too-many-statements
     config: dict[str, Any], name: str = "BitDict", title: str = "BitDict"
 ) -> type:
@@ -513,9 +618,13 @@ def bitdict_factory(  # pylint: disable=too-many-statements
     subtype_lists: dict[str, list[type | None]] = {}
     _title: str = title
 
-    _validate_property_config(config, subtype_lists)  # Initial validation of top level.
-    _check_overlapping(config)
-    total_width = _calculate_total_width(config)
+    # First, separate groups from the field configuration
+    field_config = {k: v for k, v in config.items() if k != "groups"}
+    
+    _validate_property_config(field_config, subtype_lists)  # Initial validation of fields.
+    _validate_groups(config)  # Validate group configuration.
+    _check_overlapping(field_config)
+    total_width = _calculate_total_width(field_config)
 
     class BitDict:
         """
@@ -558,7 +667,8 @@ def bitdict_factory(  # pylint: disable=too-many-statements
         ```
         """
 
-        _config: MappingProxyType[str, Any] = MappingProxyType(deepcopy(config))
+        _config: MappingProxyType[str, Any] = MappingProxyType(deepcopy(field_config))
+        _groups: list[dict[str, Any]] = deepcopy(config.get("groups", []))
         subtypes: dict[str, list[type | None]] = subtype_lists
         _total_width: int = total_width
         title: str = _title
@@ -1108,6 +1218,19 @@ def bitdict_factory(  # pylint: disable=too-many-statements
             """
 
             return cls._config
+
+        @classmethod
+        def get_groups(cls) -> list[dict[str, Any]]:
+            """Returns the group configuration for the BitDict class.
+            
+            Groups organize related bit fields with descriptions and can optionally
+            require that grouped fields be contiguous.
+            
+            Returns:
+                list[dict[str, Any]]: A list of group configurations, each containing
+                'name', 'fields', and optionally 'description' and 'contiguous'.
+            """
+            return cls._groups
 
     # end class BitDict
 

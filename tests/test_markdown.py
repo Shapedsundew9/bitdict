@@ -247,3 +247,62 @@ class TestMarkdown(unittest.TestCase):
             "| BitDict1 | bitdict | 3:1 | N/A | See 'BitDict1' definition table(s). |"
             in markdown_tables[0]
         )
+
+    def test_config_to_markdown_with_groups(self):
+        """
+        Test config_to_markdown with groups.
+        """
+        config = {
+            "enabled": {"start": 0, "width": 1, "type": "bool", "description": "Enable flag"},
+            "mode": {"start": 1, "width": 2, "type": "uint", "description": "Mode setting"},
+            "value": {"start": 3, "width": 5, "type": "int", "description": "Value field"},
+            "groups": [
+                {
+                    "name": "Control",
+                    "description": "Fields that control basic operations",
+                    "fields": ["enabled", "mode"],
+                    "contiguous": True
+                },
+                {
+                    "name": "Data",
+                    "description": "Data storage field", 
+                    "fields": ["value"]
+                }
+            ]
+        }
+        
+        markdown_tables = generate_markdown_tables(bitdict_factory(config, "TestBitDict"))
+        self.assertEqual(len(markdown_tables), 1)
+        
+        markdown = markdown_tables[0]
+        
+        # Check that group section is included
+        self.assertIn("### Field Groups", markdown)
+        self.assertIn("**Control** (contiguous): Fields that control basic operations", markdown)
+        self.assertIn("- Fields: `enabled`, `mode`", markdown)
+        self.assertIn("**Data**: Data storage field", markdown)
+        self.assertIn("- Fields: `value`", markdown)
+        
+        # Check that regular table is still there
+        self.assertIn("| Name | Type | Bitfield | Default | Description |", markdown)
+        self.assertIn("| enabled | bool | 0 | False | Enable flag |", markdown)
+        self.assertIn("| mode | uint | 2:1 | 0 | Mode setting |", markdown)
+        self.assertIn("| value | int | 7:3 | 0 | Value field |", markdown)
+
+    def test_config_to_markdown_without_groups(self):
+        """
+        Test that config_to_markdown works without groups (no group section).
+        """
+        config = {
+            "field1": {"start": 0, "width": 4, "type": "uint"},
+            "field2": {"start": 4, "width": 1, "type": "bool"},
+        }
+        
+        markdown_tables = generate_markdown_tables(bitdict_factory(config))
+        self.assertEqual(len(markdown_tables), 1)
+        
+        # Should not contain group section
+        self.assertNotIn("### Field Groups", markdown_tables[0])
+        
+        # Should still contain regular table
+        self.assertIn("| Name | Type | Bitfield | Default | Description |", markdown_tables[0])

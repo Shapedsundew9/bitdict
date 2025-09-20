@@ -1941,3 +1941,166 @@ class TestBitDict(unittest.TestCase):
         }
         with self.assertRaises(ValueError):
             _ = bitdict_factory(config, "Invalid Name")
+
+    def test_factory_valid_groups(self):
+        """Test that bitdict_factory correctly handles valid group configurations."""
+        config = {
+            "enabled": {"start": 0, "width": 1, "type": "bool"},
+            "mode": {"start": 1, "width": 2, "type": "uint"},
+            "value": {"start": 3, "width": 5, "type": "int"},
+            "groups": [
+                {
+                    "name": "control",
+                    "description": "Control fields",
+                    "fields": ["enabled", "mode"]
+                },
+                {
+                    "name": "data", 
+                    "fields": ["value"]
+                }
+            ]
+        }
+        MyBitDict = bitdict_factory(config, "TestBitDict")
+        
+        # Test basic functionality still works
+        bd = MyBitDict()
+        bd["enabled"] = True
+        bd["mode"] = 2
+        bd["value"] = -5
+        self.assertEqual(bd["enabled"], True)
+        self.assertEqual(bd["mode"], 2)
+        self.assertEqual(bd["value"], -5)
+        
+        # Test group access
+        groups = MyBitDict.get_groups()
+        self.assertEqual(len(groups), 2)
+        self.assertEqual(groups[0]["name"], "control")
+        self.assertEqual(groups[0]["description"], "Control fields")
+        self.assertEqual(groups[0]["fields"], ["enabled", "mode"])
+        self.assertEqual(groups[1]["name"], "data")
+        self.assertEqual(groups[1]["fields"], ["value"])
+        
+        # Test that groups are not in field config
+        field_config = MyBitDict.get_config()
+        self.assertNotIn("groups", field_config)
+        self.assertIn("enabled", field_config)
+
+    def test_factory_contiguous_groups(self):
+        """Test contiguous group validation."""
+        # Valid contiguous group
+        config_valid = {
+            "field1": {"start": 0, "width": 2, "type": "uint"},
+            "field2": {"start": 2, "width": 3, "type": "uint"},
+            "groups": [
+                {
+                    "name": "contiguous_group",
+                    "fields": ["field1", "field2"],
+                    "contiguous": True
+                }
+            ]
+        }
+        MyBitDict = bitdict_factory(config_valid)
+        self.assertTrue(MyBitDict.get_groups()[0].get("contiguous", False))
+        
+        # Invalid non-contiguous group
+        config_invalid = {
+            "field1": {"start": 0, "width": 2, "type": "uint"},
+            "field2": {"start": 3, "width": 3, "type": "uint"},  # Gap at bit 2
+            "groups": [
+                {
+                    "name": "non_contiguous_group",
+                    "fields": ["field1", "field2"],
+                    "contiguous": True
+                }
+            ]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config_invalid)
+        self.assertIn("not contiguous", str(cm.exception))
+
+    def test_factory_invalid_group_configurations(self):
+        """Test various invalid group configurations."""
+        # Groups not a list
+        config1 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": "not a list"
+        }
+        with self.assertRaises(TypeError) as cm:
+            bitdict_factory(config1)
+        self.assertIn("Groups must be a list", str(cm.exception))
+        
+        # Group not a dict
+        config2 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": ["not a dict"]
+        }
+        with self.assertRaises(TypeError) as cm:
+            bitdict_factory(config2)
+        self.assertIn("Group 0 must be a dictionary", str(cm.exception))
+        
+        # Missing required keys
+        config3 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": [{"description": "missing name and fields"}]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config3)
+        self.assertIn("missing required keys", str(cm.exception))
+        
+        # Empty group name
+        config4 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": [{"name": "", "fields": ["field1"]}]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config4)
+        self.assertIn("name must be a non-empty string", str(cm.exception))
+        
+        # Empty fields list
+        config5 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": [{"name": "test", "fields": []}]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config5)
+        self.assertIn("fields must be a non-empty list", str(cm.exception))
+        
+        # Unknown field reference
+        config6 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": [{"name": "test", "fields": ["unknown_field"]}]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config6)
+        self.assertIn("references unknown field", str(cm.exception))
+        
+        # Duplicate field in groups
+        config7 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "field2": {"start": 1, "width": 1, "type": "bool"},
+            "groups": [
+                {"name": "group1", "fields": ["field1"]},
+                {"name": "group2", "fields": ["field1"]}
+            ]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config7)
+        self.assertIn("already assigned to another group", str(cm.exception))
+        
+        # Invalid description type
+        config8 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": [{"name": "test", "fields": ["field1"], "description": 123}]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config8)
+        self.assertIn("description must be a string", str(cm.exception))
+        
+        # Invalid contiguous type
+        config9 = {
+            "field1": {"start": 0, "width": 1, "type": "bool"},
+            "groups": [{"name": "test", "fields": ["field1"], "contiguous": "yes"}]
+        }
+        with self.assertRaises(ValueError) as cm:
+            bitdict_factory(config9)
+        self.assertIn("contiguous must be a boolean", str(cm.exception))

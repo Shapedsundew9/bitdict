@@ -137,6 +137,36 @@ def _process_subtypes(subtypes: dict, include_types: bool) -> list[str]:
     return markdown_tables
 
 
+def _generate_group_section(groups: list[dict]) -> str:
+    """
+    Generates a markdown section describing bit field groups.
+    
+    Args:
+        groups: List of group configurations from BitDict.
+        
+    Returns:
+        A markdown string describing the groups.
+    """
+    if not groups:
+        return ""
+        
+    section = "### Field Groups\n\n"
+    
+    for group in groups:
+        group_name = group["name"]
+        group_description = group.get("description", "")
+        group_fields = ", ".join(f"`{field}`" for field in group["fields"])
+        contiguous = group.get("contiguous", False)
+        
+        section += f"**{group_name}**"
+        if contiguous:
+            section += " (contiguous)"
+        section += f": {group_description}\n"
+        section += f"- Fields: {group_fields}\n\n"
+    
+    return section
+
+
 def generate_markdown_tables(bitdict_t: type, include_types: bool = True) -> list[str]:
     """
     Converts a bitdict configuration dictionary into a list of markdown tables.
@@ -149,11 +179,19 @@ def generate_markdown_tables(bitdict_t: type, include_types: bool = True) -> lis
         A list of formatted markdown strings representing the bitdict configuration in table format.
     """
     _config = bitdict_t.get_config()
+    _groups = bitdict_t.get_groups()
+    
+    # Generate group information if groups exist
+    group_section = _generate_group_section(_groups) if _groups else ""
+    
     table_header = _generate_table_header(include_types, bitdict_t.title)
     table_rows = _generate_table_rows(_config, include_types)
     table = table_header + "\n".join(table_rows)
+    
+    # Combine group section with main table
+    full_table = group_section + table if group_section else table
 
-    markdown_tables = [table]
+    markdown_tables = [full_table]
     markdown_tables.extend(_process_subtypes(bitdict_t.subtypes, include_types))
 
     return markdown_tables
