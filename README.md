@@ -73,6 +73,42 @@ The configuration for a BitDict is a dictionary that defines the structure of th
   - `value` (set, optional): A set of valid values for the field. Each value must be an integer or boolean.
   - `range` (list of tuples, optional): A list of valid ranges for the field. Each tuple must contain one, two or 3 integers representing the start (inclusive) and end (exclusive) of the range and the step. Note that both `value` and `range` may be defined and may overlap.
 
+### Groups
+
+Groups allow you to organize related bit fields with descriptions and documentation. Groups are optional and are primarily used for documentation generation. The `groups` key is a list of group configurations, where each group has:
+
+- `name` (str): A unique identifier for the group.
+- `fields` (list of str): A list of field names that belong to this group.
+- `description` (str, optional): A human-readable description of the group's purpose.
+- `contiguous` (bool, optional): If True, validates that all fields in the group are contiguous in bit positions. Defaults to False.
+
+**Note**: Each field can only belong to one group, and all referenced fields must exist in the BitDict configuration.
+
+#### Group Example
+
+```python
+config = {
+    "enabled": {"start": 0, "width": 1, "type": "bool"},
+    "mode": {"start": 1, "width": 2, "type": "uint"},
+    "value": {"start": 3, "width": 5, "type": "int"},
+    "groups": [
+        {
+            "name": "Control",
+            "description": "Fields that control basic operations",
+            "fields": ["enabled", "mode"],
+            "contiguous": True  # Validates that enabled and mode are contiguous
+        },
+        {
+            "name": "Data", 
+            "description": "Data storage field",
+            "fields": ["value"]
+        }
+    ]
+}
+```
+
+Groups can be accessed via the `get_groups()` method on the BitDict class and are included in markdown documentation generation.
+
 ## API
 
 ### generate_markdown_tables Function
@@ -119,6 +155,7 @@ The BitDict class provides methods to interact with the bit-packed data structur
 - `to_bytes(self) -> bytes`: Converts the bit dictionary to a byte string.
 - `to_int(self) -> int`: Returns the integer representation of the BitDict.
 - `get_config(cls) -> MappingProxyType[str, Any]`: Returns the configuration settings for the BitDict class.
+- `get_groups(cls) -> list[dict[str, Any]]`: Returns the group configuration for the BitDict class, containing information about field groups defined in the configuration.
 
 ## Detailed Example
 
