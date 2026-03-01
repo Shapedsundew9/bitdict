@@ -109,7 +109,7 @@ def _generate_table_header(include_types: bool, title: str) -> str:
         if include_types
         else "| Name | Bitfield | Default | Description |\n"
     )
-    header += "|---|:-:|:-:|:-:|---|\n" if include_types else "|---|:-:|:-:|---|\n"
+    header += "| --- | :-: | :-: | :-: | --- |\n" if include_types else "| --- | :-: | :-: | --- |\n"
     return header
 
 
